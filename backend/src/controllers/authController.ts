@@ -3,6 +3,16 @@ import { z } from 'zod';
 import { authService } from '../services/authService';
 import { logger } from '../utils/logger';
 
+// Extend Request interface to include session
+declare module 'express-session' {
+  interface SessionData {
+    userId: string;
+    tenantId: string;
+    email: string;
+    role: string;
+  }
+}
+
 // Validation schemas
 const registerSchema = z.object({
   email: z.string().email('Invalid email format'),
@@ -18,9 +28,7 @@ const loginSchema = z.object({
   tenantId: z.string().optional(),
 });
 
-const refreshTokenSchema = z.object({
-  refreshToken: z.string().min(1, 'Refresh token is required'),
-});
+// Removed refreshTokenSchema as we're using sessions now
 
 export class AuthController {
   /**
@@ -33,7 +41,13 @@ export class AuthController {
       const validatedData = registerSchema.parse(req.body);
 
       // Register user
-      const { user, tokens } = await authService.register(validatedData);
+      const { user } = await authService.register(validatedData);
+
+      // Create session
+      req.session.userId = user._id.toString();
+      req.session.tenantId = user.tenantId.toString();
+      req.session.email = user.email;
+      req.session.role = user.role;
 
       res.status(201).json({
         success: true,
@@ -45,7 +59,6 @@ export class AuthController {
             role: user.role,
             tenantId: user.tenantId,
           },
-          tokens,
         },
       });
     } catch (error) {
@@ -95,7 +108,20 @@ export class AuthController {
       const validatedData = loginSchema.parse(req.body);
 
       // Login user
-      const { user, tokens } = await authService.login(validatedData);
+      const { user } = await authService.login(validatedData);
+
+      // Create session
+      req.session.userId = user._id.toString();
+      req.session.tenantId = user.tenantId.toString();
+      req.session.email = user.email;
+      req.session.role = user.role;
+
+      console.log('✅ Session created on login:', {
+        sessionID: req.sessionID,
+        userId: req.session.userId,
+        tenantId: req.session.tenantId,
+        email: req.session.email,
+      });
 
       res.status(200).json({
         success: true,
@@ -107,7 +133,6 @@ export class AuthController {
             role: user.role,
             tenantId: user.tenantId,
           },
-          tokens,
         },
       });
     } catch (error) {
@@ -138,54 +163,32 @@ export class AuthController {
   }
 
   /**
-   * Refresh access token
-   * POST /api/auth/refresh
+   * Logout user
+   * POST /api/auth/logout
    */
-  async refresh(req: Request, res: Response): Promise<void> {
+  async logout(req: Request, res: Response): Promise<void> {
     try {
-      // Validate request body
-      const { refreshToken } = refreshTokenSchema.parse(req.body);
+      req.session.destroy((err) => {
+        if (err) {
+          logger.error('Session destroy error:', err);
+          res.status(500).json({
+            success: false,
+            error: 'Logout failed',
+          });
+          return;
+        }
 
-      // Refresh token
-      const tokens = await authService.refreshToken(refreshToken);
-
-      res.status(200).json({
-        success: true,
-        data: { tokens },
+        res.clearCookie('connect.sid'); // Clear session cookie
+        res.status(200).json({
+          success: true,
+          message: 'Logged out successfully',
+        });
       });
     } catch (error) {
-      logger.error('Refresh token controller error:', error);
-
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          success: false,
-          error: 'Validation error',
-          details: error.errors,
-        });
-        return;
-      }
-
-      if (error instanceof Error) {
-        if (error.message === 'Token expired' || error.message === 'Invalid token') {
-          res.status(401).json({
-            success: false,
-            error: error.message,
-          });
-          return;
-        }
-
-        if (error.message === 'User not found') {
-          res.status(404).json({
-            success: false,
-            error: error.message,
-          });
-          return;
-        }
-      }
-
+      logger.error('Logout controller error:', error);
       res.status(500).json({
         success: false,
-        error: 'Token refresh failed',
+        error: 'Logout failed',
       });
     }
   }
@@ -196,7 +199,15 @@ export class AuthController {
    */
   async me(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.user) {
+      console.log('🔍 /me endpoint - Session data:', {
+        sessionID: req.sessionID,
+        userId: req.session.userId,
+        tenantId: req.session.tenantId,
+        email: req.session.email,
+      });
+
+      if (!req.session.userId) {
+        console.log('❌ No userId in session');
         res.status(401).json({
           success: false,
           error: 'Not authenticated',
@@ -205,7 +216,7 @@ export class AuthController {
       }
 
       // Get user details
-      const user = await authService.getUserById(req.user.userId);
+      const user = await authService.getUserById(req.session.userId);
 
       if (!user) {
         res.status(404).json({

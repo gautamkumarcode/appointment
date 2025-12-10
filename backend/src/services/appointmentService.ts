@@ -47,6 +47,31 @@ export interface RescheduleAppointmentDTO {
 
 class AppointmentService {
   /**
+   * Transform populated appointment fields to match frontend expectations
+   */
+  private transformAppointment(appointment: any): any {
+    if (!appointment) return null;
+
+    const transformed = appointment.toObject ? appointment.toObject() : appointment;
+
+    // Transform populated fields
+    if (transformed.serviceId && typeof transformed.serviceId === 'object') {
+      transformed.service = transformed.serviceId;
+      delete transformed.serviceId;
+    }
+    if (transformed.customerId && typeof transformed.customerId === 'object') {
+      transformed.customer = transformed.customerId;
+      delete transformed.customerId;
+    }
+    if (transformed.staffId && typeof transformed.staffId === 'object') {
+      transformed.staff = transformed.staffId;
+      delete transformed.staffId;
+    }
+
+    return transformed;
+  }
+
+  /**
    * Create a new appointment with validation and slot verification
    */
   async createAppointment(tenantId: string, data: CreateAppointmentDTO): Promise<IAppointment> {
@@ -154,7 +179,7 @@ class AppointmentService {
         });
       }
 
-      return appointment;
+      return this.transformAppointment(appointment);
     } catch (error) {
       await session.abortTransaction();
       logger.error('Error creating appointment:', error);
@@ -177,7 +202,7 @@ class AppointmentService {
         .populate('customerId', 'name email phone')
         .populate('staffId', 'name email');
 
-      return appointment;
+      return this.transformAppointment(appointment);
     } catch (error) {
       logger.error('Error fetching appointment:', error);
       throw error;
@@ -196,7 +221,7 @@ class AppointmentService {
         .populate('customerId', 'name email phone')
         .populate('staffId', 'name email');
 
-      return appointment;
+      return this.transformAppointment(appointment);
     } catch (error) {
       logger.error('Error fetching appointment by token:', error);
       throw error;
@@ -237,7 +262,7 @@ class AppointmentService {
         { path: 'staffId', select: 'name email' },
       ]);
 
-      return appointment;
+      return this.transformAppointment(appointment);
     } catch (error) {
       logger.error('Error updating appointment:', error);
       throw error;
@@ -394,7 +419,7 @@ class AppointmentService {
         });
       }
 
-      return appointment;
+      return this.transformAppointment(appointment);
     } catch (error) {
       await session.abortTransaction();
       logger.error('Error rescheduling appointment:', error);
@@ -468,7 +493,7 @@ class AppointmentService {
         });
       }
 
-      return appointment;
+      return this.transformAppointment(appointment);
     } catch (error) {
       await session.abortTransaction();
       logger.error('Error rescheduling appointment by token:', error);
@@ -524,7 +549,7 @@ class AppointmentService {
         query.staffId = new mongoose.Types.ObjectId(filters.staffId);
       }
 
-      const [appointments, total] = await Promise.all([
+      const [rawAppointments, total] = await Promise.all([
         Appointment.find(query)
           .populate('serviceId', 'name durationMinutes price')
           .populate('customerId', 'name email phone')
@@ -534,6 +559,11 @@ class AppointmentService {
           .limit(limit),
         Appointment.countDocuments(query),
       ]);
+
+      // Transform populated fields to match frontend expectations
+      const appointments = rawAppointments.map((appointment: any) =>
+        this.transformAppointment(appointment)
+      );
 
       return { appointments, total };
     } catch (error) {
@@ -551,7 +581,7 @@ class AppointmentService {
     endDate: Date
   ): Promise<IAppointment[]> {
     try {
-      const appointments = await Appointment.find({
+      const rawAppointments = await Appointment.find({
         tenantId: new mongoose.Types.ObjectId(tenantId),
         startTime: {
           $gte: startDate,
@@ -563,7 +593,7 @@ class AppointmentService {
         .populate('staffId', 'name email')
         .sort({ startTime: 1 });
 
-      return appointments;
+      return rawAppointments.map((appointment: any) => this.transformAppointment(appointment));
     } catch (error) {
       logger.error('Error fetching calendar appointments:', error);
       throw error;

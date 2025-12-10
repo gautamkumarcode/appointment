@@ -15,5 +15,12 @@ router.get('/me', authenticate, resolveTenant, (req, res) =>
 router.put('/me', authenticate, resolveTenant, (req, res) =>
   tenantController.updateTenant(req, res)
 );
+router.post(
+  '/me/logo',
+  authenticate,
+  resolveTenant,
+  tenantController.getUploadMiddleware(),
+  (req, res) => tenantController.uploadLogo(req, res)
+);
 
 export default router;

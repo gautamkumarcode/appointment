@@ -12,6 +12,11 @@ class FollowUpScheduler {
    */
   async scheduleFollowUp(appointmentId: string): Promise<void> {
     try {
+      if (!followUpQueue) {
+        logger.warn('Follow-up queue not available (Redis disabled)', { appointmentId });
+        return;
+      }
+
       // Send follow-up immediately (or with a small delay if preferred)
       await followUpQueue.add(
         'send-follow-up',
@@ -50,6 +55,11 @@ class FollowUpScheduler {
    */
   async scheduleNoShowReminder(appointmentId: string): Promise<void> {
     try {
+      if (!followUpQueue) {
+        logger.warn('Follow-up queue not available (Redis disabled)', { appointmentId });
+        return;
+      }
+
       // Send no-show reminder within 24 hours (using 1 hour delay for this implementation)
       // In production, you might want to send it after a few hours
       await followUpQueue.add(
@@ -89,6 +99,11 @@ class FollowUpScheduler {
    */
   async cancelFollowUp(appointmentId: string): Promise<void> {
     try {
+      if (!followUpQueue) {
+        logger.warn('Follow-up queue not available (Redis disabled)', { appointmentId });
+        return;
+      }
+
       const followUpJobId = `follow-up-${appointmentId}`;
       const noShowJobId = `no-show-${appointmentId}`;
 

@@ -13,7 +13,7 @@ export const resolveTenant = async (
 ): Promise<void> => {
   try {
     // Check if user is authenticated
-    if (!req.user || !req.tenantId) {
+    if (!req.session.userId || !req.tenantId) {
       res.status(401).json({
         success: false,
         error: 'Authentication required',

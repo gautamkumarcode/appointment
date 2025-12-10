@@ -17,6 +17,16 @@ const getSlotsSchema = z.object({
   timezone: z.string().min(1, 'Timezone is required'),
 });
 
+// Public availability schema - serviceId is optional for general availability
+const getPublicSlotsSchema = z.object({
+  serviceId: z.string().optional(),
+  staffId: z.string().optional(),
+  startDate: z.string().optional(), // ISO date string
+  endDate: z.string().optional(), // ISO date string
+  timezone: z.string().min(1, 'Timezone is required'),
+  date: z.string().optional(), // Alternative to startDate for single date queries
+});
+
 const checkSlotSchema = z.object({
   serviceId: z.string().min(1, 'Service ID is required'),
   startTime: z.string().min(1, 'Start time is required'), // ISO string
@@ -157,7 +167,7 @@ export async function checkSlot(req: Request, res: Response): Promise<void> {
 export async function getPublicAvailableSlots(req: Request, res: Response): Promise<void> {
   try {
     // Validate query parameters
-    const validation = getSlotsSchema.safeParse(req.query);
+    const validation = getPublicSlotsSchema.safeParse(req.query);
 
     if (!validation.success) {
       res.status(400).json({
@@ -167,7 +177,7 @@ export async function getPublicAvailableSlots(req: Request, res: Response): Prom
       return;
     }
 
-    const { serviceId, staffId, startDate, endDate, timezone } = validation.data;
+    const { serviceId, staffId, startDate, endDate, timezone, date } = validation.data;
 
     // Validate timezone
     if (!isValidTimezone(timezone)) {
@@ -188,8 +198,9 @@ export async function getPublicAvailableSlots(req: Request, res: Response): Prom
     }
 
     // Parse dates or use defaults
-    const start = startDate ? parseISO(startDate) : new Date();
-    const end = endDate ? parseISO(endDate) : addDays(new Date(), 30);
+    // Use 'date' parameter if provided, otherwise use startDate/endDate
+    const start = date ? parseISO(date) : startDate ? parseISO(startDate) : new Date();
+    const end = date ? parseISO(date) : endDate ? parseISO(endDate) : addDays(new Date(), 30);
 
     // Generate slots
     const params: SlotGenerationParams = {
@@ -203,9 +214,18 @@ export async function getPublicAvailableSlots(req: Request, res: Response): Prom
 
     const slots = await generateTimeSlots(params);
 
+    // Transform slots to match frontend expectations
+    const transformedSlots = slots.map(slot => ({
+      startTime: slot.startTime.toISOString(),
+      endTime: slot.endTime.toISOString(),
+      available: slot.available,
+      staffId: slot.staffId,
+    }));
+
     res.json({
-      slots,
-      count: slots.length,
+      success: true,
+      data: transformedSlots,
+      count: transformedSlots.length,
     });
   } catch (error: any) {
     console.error('Error getting public available slots:', error);

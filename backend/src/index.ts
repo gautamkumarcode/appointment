@@ -1,13 +1,20 @@
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
+import session from 'express-session';
+import fs from 'fs';
 import helmet from 'helmet';
+import path from 'path';
 import { connectDatabase } from './config/database';
+import aiRoutes from './routes/aiRoutes';
+import analyticsRoutes from './routes/analyticsRoutes';
 import appointmentRoutes, { publicAppointmentRoutes } from './routes/appointmentRoutes';
 import authRoutes from './routes/authRoutes';
 import availabilityRoutes from './routes/availabilityRoutes';
 import customerRoutes from './routes/customerRoutes';
 import paymentRoutes, { webhookRouter } from './routes/paymentRoutes';
+import publicBookingRoutes from './routes/publicBookingRoutes';
 import serviceRoutes from './routes/serviceRoutes';
 import staffRoutes from './routes/staffRoutes';
 import tenantRoutes from './routes/tenantRoutes';
@@ -23,7 +30,13 @@ const PORT = process.env.PORT || 4500;
 
 // Middleware
 app.use(helmet());
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true, // Allow cookies
+  })
+);
+app.use(cookieParser());
 
 // Webhook routes need raw body - register before express.json()
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }), webhookRouter);
@@ -31,6 +44,49 @@ app.use('/api/payments/webhook', express.raw({ type: 'application/json' }), webh
 // Regular JSON parsing for other routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Session configuration with debugging
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'your-session-secret',
+    resave: false,
+    saveUninitialized: false,
+    name: 'sessionId',
+    cookie: {
+      secure: false, // Set to false for development (HTTP)
+      httpOnly: true, // Prevent XSS
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours (shorter for testing)
+      sameSite: 'lax', // CSRF protection
+    },
+  })
+);
+
+// Session debugging middleware
+app.use((req, res, next) => {
+  if (req.path.includes('/auth/')) {
+    console.log('🔍 Session Debug:', {
+      sessionID: req.sessionID,
+      userId: req.session.userId,
+      tenantId: req.session.tenantId,
+      path: req.path,
+      method: req.method,
+    });
+  }
+  next();
+});
+
+// Create uploads directory if it doesn't exist
+const uploadsDir = path.join(__dirname, '../uploads');
+const logosDir = path.join(uploadsDir, 'logos');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+if (!fs.existsSync(logosDir)) {
+  fs.mkdirSync(logosDir, { recursive: true });
+}
+
+// Serve static files
+app.use('/uploads', express.static(uploadsDir));
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
@@ -45,10 +101,13 @@ app.use('/api/staff', staffRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/availability', availabilityRoutes);
 app.use('/api/appointments', appointmentRoutes);
+app.use('/api/analytics', analyticsRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Public routes (no authentication required)
 app.use('/api/public/appointments', publicAppointmentRoutes);
+app.use('/api/public', publicBookingRoutes);
 
 // Start server function
 export const startServer = async () => {

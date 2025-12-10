@@ -14,6 +14,11 @@ class ReminderScheduler {
    */
   async scheduleReminder(appointmentId: string, appointmentTime: Date): Promise<void> {
     try {
+      if (!reminderQueue) {
+        logger.warn('Reminder queue not available (Redis disabled)', { appointmentId });
+        return;
+      }
+
       // Calculate when to send the reminder (24 hours before appointment)
       const reminderTime = new Date(appointmentTime.getTime() - 24 * 60 * 60 * 1000);
       const now = new Date();
@@ -69,6 +74,11 @@ class ReminderScheduler {
    */
   async cancelReminder(appointmentId: string): Promise<void> {
     try {
+      if (!reminderQueue) {
+        logger.warn('Reminder queue not available (Redis disabled)', { appointmentId });
+        return;
+      }
+
       const jobId = `reminder-${appointmentId}`;
       const job = await reminderQueue.getJob(jobId);
 

@@ -41,8 +41,8 @@ const rescheduleSchema = z.object({
 });
 
 const listAppointmentsSchema = z.object({
-  startDate: z.string().datetime().optional(),
-  endDate: z.string().datetime().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
   status: z.union([z.string(), z.array(z.string())]).optional(),
   customerId: z.string().optional(),
   staffId: z.string().optional(),
@@ -51,8 +51,8 @@ const listAppointmentsSchema = z.object({
 });
 
 const calendarViewSchema = z.object({
-  startDate: z.string().datetime('Start date is required'),
-  endDate: z.string().datetime('End date is required'),
+  startDate: z.string().min(1, 'Start date is required'),
+  endDate: z.string().min(1, 'End date is required'),
 });
 
 /**
@@ -60,7 +60,7 @@ const calendarViewSchema = z.object({
  */
 export async function createAppointment(req: Request, res: Response): Promise<void> {
   try {
-    const tenantId = req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -87,7 +87,10 @@ export async function createAppointment(req: Request, res: Response): Promise<vo
 
     const appointment = await appointmentService.createAppointment(tenantId, appointmentData);
 
-    res.status(201).json(appointment);
+    res.status(201).json({
+      success: true,
+      data: appointment,
+    });
   } catch (error: any) {
     logger.error('Error in createAppointment controller:', error);
     if (error.message.includes('not found') || error.message.includes('inactive')) {
@@ -108,7 +111,7 @@ export async function createAppointment(req: Request, res: Response): Promise<vo
  */
 export async function getAppointment(req: Request, res: Response): Promise<void> {
   try {
-    const tenantId = req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -122,7 +125,10 @@ export async function getAppointment(req: Request, res: Response): Promise<void>
       return;
     }
 
-    res.json(appointment);
+    res.json({
+      success: true,
+      data: appointment,
+    });
   } catch (error) {
     logger.error('Error in getAppointment controller:', error);
     res.status(500).json({ error: 'Failed to fetch appointment' });
@@ -134,7 +140,7 @@ export async function getAppointment(req: Request, res: Response): Promise<void>
  */
 export async function updateAppointment(req: Request, res: Response): Promise<void> {
   try {
-    const tenantId = req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -163,7 +169,10 @@ export async function updateAppointment(req: Request, res: Response): Promise<vo
       return;
     }
 
-    res.json(appointment);
+    res.json({
+      success: true,
+      data: appointment,
+    });
   } catch (error: any) {
     logger.error('Error in updateAppointment controller:', error);
     res.status(500).json({ error: 'Failed to update appointment' });
@@ -175,7 +184,7 @@ export async function updateAppointment(req: Request, res: Response): Promise<vo
  */
 export async function updateAppointmentStatus(req: Request, res: Response): Promise<void> {
   try {
-    const tenantId = req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -204,7 +213,10 @@ export async function updateAppointmentStatus(req: Request, res: Response): Prom
       return;
     }
 
-    res.json(appointment);
+    res.json({
+      success: true,
+      data: appointment,
+    });
   } catch (error) {
     logger.error('Error in updateAppointmentStatus controller:', error);
     res.status(500).json({ error: 'Failed to update appointment status' });
@@ -216,7 +228,7 @@ export async function updateAppointmentStatus(req: Request, res: Response): Prom
  */
 export async function cancelAppointment(req: Request, res: Response): Promise<void> {
   try {
-    const tenantId = req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -232,7 +244,10 @@ export async function cancelAppointment(req: Request, res: Response): Promise<vo
       return;
     }
 
-    res.json(appointment);
+    res.json({
+      success: true,
+      data: appointment,
+    });
   } catch (error) {
     logger.error('Error in cancelAppointment controller:', error);
     res.status(500).json({ error: 'Failed to cancel appointment' });
@@ -244,7 +259,7 @@ export async function cancelAppointment(req: Request, res: Response): Promise<vo
  */
 export async function rescheduleAppointment(req: Request, res: Response): Promise<void> {
   try {
-    const tenantId = req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -279,7 +294,10 @@ export async function rescheduleAppointment(req: Request, res: Response): Promis
       return;
     }
 
-    res.json(appointment);
+    res.json({
+      success: true,
+      data: appointment,
+    });
   } catch (error: any) {
     logger.error('Error in rescheduleAppointment controller:', error);
     if (error.message.includes('Cannot reschedule')) {
@@ -297,7 +315,7 @@ export async function rescheduleAppointment(req: Request, res: Response): Promis
  */
 export async function listAppointments(req: Request, res: Response): Promise<void> {
   try {
-    const tenantId = req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -319,10 +337,22 @@ export async function listAppointments(req: Request, res: Response): Promise<voi
     const filters: any = {};
 
     if (query.startDate) {
-      filters.startDate = new Date(query.startDate);
+      // If it's a date string (YYYY-MM-DD), set to start of day
+      const startDate = new Date(query.startDate);
+      if (query.startDate.length === 10) {
+        // Date string format, set to start of day
+        startDate.setHours(0, 0, 0, 0);
+      }
+      filters.startDate = startDate;
     }
     if (query.endDate) {
-      filters.endDate = new Date(query.endDate);
+      // If it's a date string (YYYY-MM-DD), set to end of day
+      const endDate = new Date(query.endDate);
+      if (query.endDate.length === 10) {
+        // Date string format, set to end of day
+        endDate.setHours(23, 59, 59, 999);
+      }
+      filters.endDate = endDate;
     }
     if (query.status) {
       filters.status = query.status;
@@ -342,7 +372,11 @@ export async function listAppointments(req: Request, res: Response): Promise<voi
 
     const result = await appointmentService.listAppointments(tenantId, filters);
 
-    res.json(result);
+    res.json({
+      success: true,
+      data: result.appointments,
+      total: result.total,
+    });
   } catch (error) {
     logger.error('Error in listAppointments controller:', error);
     res.status(500).json({ error: 'Failed to list appointments' });
@@ -354,7 +388,7 @@ export async function listAppointments(req: Request, res: Response): Promise<voi
  */
 export async function getCalendarAppointments(req: Request, res: Response): Promise<void> {
   try {
-    const tenantId = req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -378,7 +412,10 @@ export async function getCalendarAppointments(req: Request, res: Response): Prom
       new Date(endDate)
     );
 
-    res.json(appointments);
+    res.json({
+      success: true,
+      data: appointments,
+    });
   } catch (error) {
     logger.error('Error in getCalendarAppointments controller:', error);
     res.status(500).json({ error: 'Failed to fetch calendar appointments' });
@@ -399,7 +436,10 @@ export async function getAppointmentByToken(req: Request, res: Response): Promis
       return;
     }
 
-    res.json(appointment);
+    res.json({
+      success: true,
+      data: appointment,
+    });
   } catch (error) {
     logger.error('Error in getAppointmentByToken controller:', error);
     res.status(500).json({ error: 'Failed to fetch appointment' });
@@ -439,7 +479,10 @@ export async function rescheduleAppointmentByToken(req: Request, res: Response):
       return;
     }
 
-    res.json(appointment);
+    res.json({
+      success: true,
+      data: appointment,
+    });
   } catch (error: any) {
     logger.error('Error in rescheduleAppointmentByToken controller:', error);
     if (error.message.includes('Cannot reschedule') || error.message.includes('Invalid')) {

@@ -89,7 +89,7 @@ export class AuthService {
   /**
    * Register a new user
    */
-  async register(data: RegisterUserDTO): Promise<{ user: IUser; tokens: AuthTokens }> {
+  async register(data: RegisterUserDTO): Promise<{ user: IUser }> {
     try {
       // Check if tenant exists
       const tenant = await Tenant.findById(data.tenantId);
@@ -119,23 +119,9 @@ export class AuthService {
         role: data.role || 'owner',
       });
 
-      // Generate tokens
-      const tokenPayload: TokenPayload = {
-        userId: user._id.toString(),
-        tenantId: user.tenantId.toString(),
-        email: user.email,
-        role: user.role,
-      };
-
-      const tokens: AuthTokens = {
-        accessToken: this.generateAccessToken(tokenPayload),
-        refreshToken: this.generateRefreshToken(tokenPayload),
-        expiresIn: JWT_EXPIRES_IN,
-      };
-
       logger.info(`User registered successfully: ${user.email}`);
 
-      return { user, tokens };
+      return { user };
     } catch (error) {
       logger.error('Registration error:', error);
       throw error;
@@ -145,7 +131,7 @@ export class AuthService {
   /**
    * Login user
    */
-  async login(data: LoginDTO): Promise<{ user: IUser; tokens: AuthTokens }> {
+  async login(data: LoginDTO): Promise<{ user: IUser }> {
     try {
       // Build query
       const query: { email: string; tenantId?: string } = {
@@ -170,23 +156,9 @@ export class AuthService {
         throw new Error('Invalid credentials');
       }
 
-      // Generate tokens
-      const tokenPayload: TokenPayload = {
-        userId: user._id.toString(),
-        tenantId: user.tenantId.toString(),
-        email: user.email,
-        role: user.role,
-      };
-
-      const tokens: AuthTokens = {
-        accessToken: this.generateAccessToken(tokenPayload),
-        refreshToken: this.generateRefreshToken(tokenPayload),
-        expiresIn: JWT_EXPIRES_IN,
-      };
-
       logger.info(`User logged in successfully: ${user.email}`);
 
-      return { user, tokens };
+      return { user };
     } catch (error) {
       logger.error('Login error:', error);
       throw error;

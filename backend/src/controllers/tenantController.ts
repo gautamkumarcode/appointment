@@ -1,8 +1,14 @@
 import { Request, Response } from 'express';
+import multer, { FileFilterCallback } from 'multer';
+import path from 'path';
 import { z } from 'zod';
 import { authService } from '../services/authService';
 import { tenantService } from '../services/tenantService';
 import { logger } from '../utils/logger';
+
+interface RequestWithFile extends Request {
+  file?: Express.Multer.File;
+}
 
 // Validation schemas
 const createTenantSchema = z.object({
@@ -26,6 +32,31 @@ const updateTenantSchema = z.object({
   settings: z.record(z.unknown()).optional(),
 });
 
+// Configure multer for logo uploads
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, 'uploads/logos/');
+  },
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, 'logo-' + uniqueSuffix + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB
+  },
+  fileFilter: (_req, file, cb: FileFilterCallback) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  },
+});
+
 export class TenantController {
   /**
    * Register a new tenant with owner account
@@ -46,13 +77,19 @@ export class TenantController {
       });
 
       // Create owner user account
-      const { user, tokens } = await authService.register({
+      const { user } = await authService.register({
         email: validatedData.email,
         password: validatedData.ownerPassword,
         name: validatedData.ownerName,
         tenantId: tenant._id.toString(),
         role: 'owner',
       });
+
+      // Create session
+      req.session.userId = user._id.toString();
+      req.session.tenantId = tenant._id.toString();
+      req.session.email = user.email;
+      req.session.role = user.role;
 
       res.status(201).json({
         success: true,
@@ -73,7 +110,6 @@ export class TenantController {
             name: user.name,
             role: user.role,
           },
-          tokens,
         },
       });
     } catch (error) {
@@ -130,19 +166,17 @@ export class TenantController {
       res.status(200).json({
         success: true,
         data: {
-          tenant: {
-            id: tenant._id,
-            slug: tenant.slug,
-            businessName: tenant.businessName,
-            email: tenant.email,
-            phone: tenant.phone,
-            timezone: tenant.timezone,
-            currency: tenant.currency,
-            logo: tenant.logo,
-            primaryColor: tenant.primaryColor,
-            settings: tenant.settings,
-            bookingUrl: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/book/${tenant.slug}`,
-          },
+          id: tenant._id,
+          slug: tenant.slug,
+          businessName: tenant.businessName,
+          email: tenant.email,
+          phone: tenant.phone,
+          timezone: tenant.timezone,
+          currency: tenant.currency,
+          logo: tenant.logo,
+          primaryColor: tenant.primaryColor,
+          settings: tenant.settings,
+          bookingUrl: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/book/${tenant.slug}`,
         },
       });
     } catch (error) {
@@ -185,18 +219,16 @@ export class TenantController {
       res.status(200).json({
         success: true,
         data: {
-          tenant: {
-            id: tenant._id,
-            slug: tenant.slug,
-            businessName: tenant.businessName,
-            email: tenant.email,
-            phone: tenant.phone,
-            timezone: tenant.timezone,
-            currency: tenant.currency,
-            logo: tenant.logo,
-            primaryColor: tenant.primaryColor,
-            settings: tenant.settings,
-          },
+          id: tenant._id,
+          slug: tenant.slug,
+          businessName: tenant.businessName,
+          email: tenant.email,
+          phone: tenant.phone,
+          timezone: tenant.timezone,
+          currency: tenant.currency,
+          logo: tenant.logo,
+          primaryColor: tenant.primaryColor,
+          settings: tenant.settings,
         },
       });
     } catch (error) {
@@ -214,6 +246,47 @@ export class TenantController {
       res.status(500).json({
         success: false,
         error: 'Failed to update tenant',
+      });
+    }
+  }
+
+  /**
+   * Upload tenant logo
+   * POST /api/tenants/me/logo
+   */
+  async uploadLogo(req: RequestWithFile, res: Response): Promise<void> {
+    try {
+      if (!req.tenantId) {
+        res.status(401).json({
+          success: false,
+          error: 'Not authenticated',
+        });
+        return;
+      }
+
+      if (!req.file) {
+        res.status(400).json({
+          success: false,
+          error: 'No file uploaded',
+        });
+        return;
+      }
+
+      // Generate URL for the uploaded file
+      const baseUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+      const logoUrl = `${baseUrl}/uploads/logos/${req.file.filename}`;
+
+      res.status(200).json({
+        success: true,
+        data: {
+          url: logoUrl,
+        },
+      });
+    } catch (error) {
+      logger.error('Upload logo error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to upload logo',
       });
     }
   }
@@ -257,6 +330,13 @@ export class TenantController {
         error: 'Failed to get tenant',
       });
     }
+  }
+
+  /**
+   * Get multer upload middleware
+   */
+  getUploadMiddleware() {
+    return upload.single('logo');
   }
 }
 

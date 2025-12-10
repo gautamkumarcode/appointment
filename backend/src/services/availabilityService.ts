@@ -21,12 +21,13 @@ export interface TimeSlot {
   endTime: Date; // UTC
   startTimeLocal: string; // ISO string in customer timezone
   endTimeLocal: string; // ISO string in customer timezone
+  available: boolean; // Always true for generated slots
   staffId?: string;
 }
 
 export interface SlotGenerationParams {
   tenantId: string;
-  serviceId: string;
+  serviceId?: string; // Optional for general availability queries
   staffId?: string;
   startDate: Date; // In customer timezone
   endDate: Date; // In customer timezone
@@ -48,6 +49,11 @@ export async function generateTimeSlots(params: SlotGenerationParams): Promise<T
   const tenantExists = await Tenant.findById(tenantId);
   if (!tenantExists) {
     throw new Error('Tenant not found');
+  }
+
+  // If no serviceId provided, return empty array (user needs to select a service first)
+  if (!serviceId) {
+    return [];
   }
 
   // Validate and fetch service
@@ -232,6 +238,7 @@ function generateSlotsForPeriod(
         endTime: currentSlotEnd,
         startTimeLocal: startTimeLocal.toISOString(),
         endTimeLocal: endTimeLocal.toISOString(),
+        available: true, // All generated slots are available
         staffId: staff?._id.toString(),
       });
     }
@@ -297,10 +304,10 @@ function getDayName(dayNumber: number): string {
  * Default working hours (9 AM - 5 PM) for businesses without staff
  */
 function getDefaultWorkingHours(dayOfWeek: string): { start: string; end: string }[] {
-  // Default: Monday to Friday, 9 AM - 5 PM
-  const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+  // Default: Monday to Sunday, 9 AM - 5 PM (7 days a week)
+  const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
-  if (weekdays.includes(dayOfWeek)) {
+  if (allDays.includes(dayOfWeek)) {
     return [{ start: '09:00', end: '17:00' }];
   }
 

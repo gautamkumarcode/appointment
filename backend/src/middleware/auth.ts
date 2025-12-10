@@ -1,19 +1,17 @@
 import { NextFunction, Request, Response } from 'express';
-import { authService, TokenPayload } from '../services/authService';
 import { logger } from '../utils/logger';
 
-// Extend Express Request to include user and tenant info
+// Extend Express Request to include tenant info
 declare global {
   namespace Express {
     interface Request {
-      user?: TokenPayload;
       tenantId?: string;
     }
   }
 }
 
 /**
- * Middleware to authenticate JWT token
+ * Middleware to authenticate using session
  */
 export const authenticate = async (
   req: Request,
@@ -21,48 +19,21 @@ export const authenticate = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    // Get token from Authorization header
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // Check if user is authenticated via session
+    if (!req.session.userId) {
       res.status(401).json({
         success: false,
-        error: 'No token provided',
+        error: 'Not authenticated',
       });
       return;
     }
 
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-
-    // Verify token
-    const payload = authService.verifyToken(token);
-
-    // Attach user info to request
-    req.user = payload;
-    req.tenantId = payload.tenantId;
+    // Attach tenant info to request
+    req.tenantId = req.session.tenantId;
 
     next();
   } catch (error) {
     logger.error('Authentication error:', error);
-
-    if (error instanceof Error) {
-      if (error.message === 'Token expired') {
-        res.status(401).json({
-          success: false,
-          error: 'Token expired',
-        });
-        return;
-      }
-
-      if (error.message === 'Invalid token') {
-        res.status(401).json({
-          success: false,
-          error: 'Invalid token',
-        });
-        return;
-      }
-    }
-
     res.status(401).json({
       success: false,
       error: 'Authentication failed',
@@ -75,7 +46,7 @@ export const authenticate = async (
  */
 export const authorize = (...roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {
-    if (!req.user) {
+    if (!req.session.userId) {
       res.status(401).json({
         success: false,
         error: 'Not authenticated',
@@ -83,7 +54,7 @@ export const authorize = (...roles: string[]) => {
       return;
     }
 
-    if (!roles.includes(req.user.role)) {
+    if (!req.session.role || !roles.includes(req.session.role)) {
       res.status(403).json({
         success: false,
         error: 'Insufficient permissions',
@@ -96,7 +67,7 @@ export const authorize = (...roles: string[]) => {
 };
 
 /**
- * Optional authentication - doesn't fail if no token provided
+ * Optional authentication - doesn't fail if no session
  */
 export const optionalAuth = async (
   req: Request,
@@ -104,15 +75,9 @@ export const optionalAuth = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const authHeader = req.headers.authorization;
-
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      const payload = authService.verifyToken(token);
-      req.user = payload;
-      req.tenantId = payload.tenantId;
+    if (req.session.userId) {
+      req.tenantId = req.session.tenantId;
     }
-
     next();
   } catch (error) {
     // Continue without authentication
