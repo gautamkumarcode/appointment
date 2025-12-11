@@ -72,6 +72,7 @@ export async function getTenantInfo(req: Request, res: Response): Promise<void> 
 
     // Return only public branding information
     const tenantInfo = {
+      _id: tenant._id.toString(), // Include tenant ID for chat widget
       businessName: tenant.businessName,
       logo: tenant.logo,
       primaryColor: tenant.primaryColor,

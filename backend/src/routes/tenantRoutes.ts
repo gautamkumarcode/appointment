@@ -22,5 +22,8 @@ router.post(
   tenantController.getUploadMiddleware(),
   (req, res) => tenantController.uploadLogo(req, res)
 );
+router.post('/register-domain', authenticate, resolveTenant, (req, res) =>
+  tenantController.registerDomain(req, res)
+);
 
 export default router;

@@ -6,10 +6,10 @@ import { logger } from '../utils/logger';
 // Validation schemas
 const chatMessageSchema = z.object({
   message: z.string().min(1).max(1000),
-  conversationId: z.string().optional(),
+  conversationId: z.string().optional().nullable(),
   channel: z.enum(['web', 'whatsapp', 'messenger', 'instagram']).default('web'),
-  externalId: z.string().optional(),
-  customerId: z.string().optional(),
+  externalId: z.string().optional().nullable(),
+  customerId: z.string().optional().nullable(),
   timezone: z.string().default('UTC'),
 });
 
@@ -36,12 +36,16 @@ export const handleChatMessage = async (req: Request, res: Response) => {
     const validatedData = chatMessageSchema.parse(req.body);
     const { message, channel, externalId, customerId } = validatedData;
 
+    // Convert null values to undefined for TypeScript compatibility
+    const cleanExternalId = externalId || undefined;
+    const cleanCustomerId = customerId || undefined;
+
     // Get or create conversation
     const conversation = await aiAssistantService.getOrCreateConversation(
       tenantId,
       channel,
-      externalId,
-      customerId
+      cleanExternalId,
+      cleanCustomerId
     );
 
     // Get conversation history
@@ -328,12 +332,16 @@ export const handlePublicChatMessage = async (req: Request, res: Response) => {
     const validatedData = chatMessageSchema.parse(req.body);
     const { message, channel, externalId, customerId } = validatedData;
 
+    // Convert null values to undefined for TypeScript compatibility
+    const cleanExternalId = externalId || undefined;
+    const cleanCustomerId = customerId || undefined;
+
     // Get or create conversation
     const conversation = await aiAssistantService.getOrCreateConversation(
       tenantId,
       channel,
-      externalId,
-      customerId
+      cleanExternalId,
+      cleanCustomerId
     );
 
     // Get conversation history

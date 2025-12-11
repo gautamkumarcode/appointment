@@ -44,6 +44,7 @@ export interface BookingResponse {
 }
 
 export interface TenantInfo {
+  _id: string; // Add tenant ID for chat widget
   businessName: string;
   logo?: string;
   primaryColor?: string;

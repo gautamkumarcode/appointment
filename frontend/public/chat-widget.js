@@ -20,21 +20,65 @@
 
   // Default configuration
   const defaultConfig = {
-    apiUrl: '/api',
+    apiUrl: 'http://192.168.1.13:4500/api', // Your fixed backend URL
     theme: {
       primaryColor: '#007bff',
       textColor: '#333333',
     },
     welcomeMessage: "Hi! I'm here to help you book an appointment. How can I assist you today?",
     placeholder: 'Type your message...',
+    position: 'bottom-right', // bottom-right, bottom-left, top-right, top-left
+    showBranding: true,
+    bookingUrl: null, // Optional direct booking link
+    enableAnalytics: true, // Track widget usage
+    autoOpen: false, // Auto-open widget on page load
+    openDelay: 0, // Delay before auto-opening (ms)
   };
 
   // Merge user config with defaults
   const config = Object.assign({}, defaultConfig, window.ChatWidgetConfig || {});
 
-  if (!config.tenantId) {
-    console.error('ChatWidget: tenantId is required');
+  if (!config.websiteUrl) {
+    console.error('ChatWidget: websiteUrl is required');
     return;
+  }
+
+  // Get tenant configuration from backend based on website URL
+  let tenantConfig = null;
+
+  // Fetch tenant configuration
+  async function fetchTenantConfig() {
+    try {
+      const response = await fetch(`${config.apiUrl}/widget/config-by-domain`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          websiteUrl: config.websiteUrl,
+          currentUrl: window.location.href,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch tenant configuration');
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        tenantConfig = data.data;
+        // Update config with tenant-specific settings
+        config.theme.primaryColor = tenantConfig.theme?.primaryColor || config.theme.primaryColor;
+        config.welcomeMessage = tenantConfig.welcomeMessage || config.welcomeMessage;
+        config.bookingUrl = tenantConfig.bookingUrl || config.bookingUrl;
+        config.showBranding = tenantConfig.showBranding !== false;
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error fetching tenant config:', error);
+      return false;
+    }
   }
 
   // Widget state
@@ -48,10 +92,17 @@
   function createWidget() {
     const widgetContainer = document.createElement('div');
     widgetContainer.id = 'chat-widget-container';
+    // Position widget based on config
+    const positions = {
+      'bottom-right': 'bottom: 20px; right: 20px;',
+      'bottom-left': 'bottom: 20px; left: 20px;',
+      'top-right': 'top: 20px; right: 20px;',
+      'top-left': 'top: 20px; left: 20px;',
+    };
+
     widgetContainer.style.cssText = `
       position: fixed;
-      bottom: 20px;
-      right: 20px;
+      ${positions[config.position] || positions['bottom-right']}
       z-index: 9999;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     `;
@@ -319,6 +370,17 @@
               </svg>
             </button>
           </div>
+          ${
+            config.showBranding
+              ? `
+          <div style="padding: 8px 12px; border-top: 1px solid #e1e5e9; background: #f8f9fa; text-align: center; border-radius: 0 0 8px 8px;">
+            <a href="https://your-domain.com" target="_blank" style="color: #666; text-decoration: none; font-size: 11px;">
+              Powered by AI Assistant
+            </a>
+          </div>
+          `
+              : ''
+          }
         `
             : ''
         }
@@ -449,7 +511,7 @@
     updateMessagesDisplay();
 
     try {
-      const response = await fetch(`${config.apiUrl}/ai/chat`, {
+      const response = await fetch(`${config.apiUrl}/ai/public/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -480,10 +542,15 @@
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      addMessage(
-        'assistant',
-        "I'm sorry, I'm having trouble connecting right now. Please try again in a moment."
-      );
+      let fallbackMessage =
+        "I'm currently unavailable, but I'd love to help you! Please feel free to browse our services or contact us directly if you need assistance.";
+
+      // Add booking link if available
+      if (config.bookingUrl) {
+        fallbackMessage += ` You can also <a href="${config.bookingUrl}" target="_blank" style="color: ${config.theme.primaryColor}; text-decoration: underline;">book an appointment directly here</a>.`;
+      }
+
+      addMessage('assistant', fallbackMessage);
     } finally {
       isLoading = false;
       updateMessagesDisplay();
@@ -500,9 +567,135 @@
 
   // Initialize widget when DOM is ready
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', createWidget);
+    document.addEventListener('DOMContentLoaded', initializeWidget);
   } else {
+    initializeWidget();
+  }
+
+  async function initializeWidget() {
+    // First fetch tenant configuration
+    const configLoaded = await fetchTenantConfig();
+
+    if (!configLoaded) {
+      console.error(
+        'ChatWidget: Failed to load tenant configuration for website:',
+        config.websiteUrl
+      );
+      console.error('Please make sure your website domain is registered in your dashboard.');
+      return;
+    }
+
     createWidget();
+
+    // Auto-open widget if configured
+    if (config.autoOpen) {
+      setTimeout(() => {
+        if (!isOpen) {
+          toggleWidget();
+          trackEvent('widget_auto_opened');
+        }
+      }, config.openDelay);
+    }
+  }
+
+  // Analytics tracking
+  function trackEvent(event, data = {}) {
+    if (!config.enableAnalytics) return;
+
+    try {
+      fetch(`${config.apiUrl}/widget/analytics/${config.tenantId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          event,
+          data: {
+            ...data,
+            url: window.location.href,
+            referrer: document.referrer,
+            timestamp: new Date().toISOString(),
+          },
+        }),
+      }).catch(() => {}); // Silently fail analytics
+    } catch (error) {
+      // Silently fail analytics
+    }
+  }
+
+  // Track widget initialization
+  trackEvent('widget_loaded');
+
+  // Enhanced toggle widget with analytics
+  function toggleWidget() {
+    isOpen = !isOpen;
+    trackEvent(isOpen ? 'widget_opened' : 'widget_closed');
+    updateWidget();
+  }
+
+  // Enhanced send message with analytics
+  async function sendMessage() {
+    const input = document.getElementById('chat-input');
+    const message = input.value.trim();
+
+    if (!message || isLoading) return;
+
+    trackEvent('message_sent', { messageLength: message.length });
+
+    addMessage('user', message);
+    input.value = '';
+    isLoading = true;
+    updateMessagesDisplay();
+
+    try {
+      const response = await fetch(`${config.apiUrl}/ai/public/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-ID': config.tenantId,
+        },
+        body: JSON.stringify({
+          message,
+          conversationId,
+          channel: 'web',
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send message');
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        addMessage('assistant', data.data.message);
+        trackEvent('message_received', { responseLength: data.data.message.length });
+
+        if (data.data.conversationId && !conversationId) {
+          conversationId = data.data.conversationId;
+          trackEvent('conversation_started', { conversationId: data.data.conversationId });
+        }
+      } else {
+        throw new Error(data.error || 'Failed to get response');
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      trackEvent('message_error', { error: error.message });
+
+      let fallbackMessage =
+        "I'm currently unavailable, but I'd love to help you! Please feel free to browse our services or contact us directly if you need assistance.";
+
+      // Add booking link if available
+      if (config.bookingUrl) {
+        fallbackMessage += ` You can also <a href="${config.bookingUrl}" target="_blank" style="color: ${config.theme.primaryColor}; text-decoration: underline;">book an appointment directly here</a>.`;
+      }
+
+      addMessage('assistant', fallbackMessage);
+    } finally {
+      isLoading = false;
+      updateMessagesDisplay();
+    }
   }
 
   // Expose API for external control
@@ -510,22 +703,27 @@
     open: function () {
       isOpen = true;
       isMinimized = false;
+      trackEvent('widget_opened_programmatically');
       updateWidget();
     },
     close: function () {
       isOpen = false;
+      trackEvent('widget_closed_programmatically');
       updateWidget();
     },
     minimize: function () {
       isMinimized = true;
+      trackEvent('widget_minimized_programmatically');
       updateWidget();
     },
     sendMessage: function (message) {
       if (typeof message === 'string' && message.trim()) {
         addMessage('user', message.trim());
+        trackEvent('message_sent_programmatically', { messageLength: message.length });
         // Process the message through the AI
         sendMessage();
       }
     },
+    trackEvent: trackEvent, // Allow custom event tracking
   };
 })();

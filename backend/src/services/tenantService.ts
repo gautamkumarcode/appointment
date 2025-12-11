@@ -130,6 +130,29 @@ export class TenantService {
   }
 
   /**
+   * Add an allowed domain for widget usage
+   */
+  async addAllowedDomain(tenantId: string, domain: string): Promise<ITenant> {
+    try {
+      const tenant = await Tenant.findByIdAndUpdate(
+        tenantId,
+        { $addToSet: { allowedDomains: domain } }, // $addToSet prevents duplicates
+        { new: true, runValidators: true }
+      );
+
+      if (!tenant) {
+        throw new Error('Tenant not found');
+      }
+
+      logger.info(`Domain added to tenant ${tenant.slug}: ${domain}`);
+      return tenant;
+    } catch (error) {
+      logger.error('Add allowed domain error:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Check if slug is available
    */
   async isSlugAvailable(slug: string): Promise<boolean> {

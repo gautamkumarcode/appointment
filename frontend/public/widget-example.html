@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Chat Widget Example</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        line-height: 1.6;
+      }
+      .header {
+        text-align: center;
+        margin-bottom: 40px;
+        padding: 20px;
+        background: #f8f9fa;
+        border-radius: 8px;
+      }
+      .content {
+        margin-bottom: 40px;
+      }
+      .code-block {
+        background: #f4f4f4;
+        padding: 15px;
+        border-radius: 5px;
+        border-left: 4px solid #007bff;
+        margin: 20px 0;
+      }
+      .highlight {
+        background: #fff3cd;
+        padding: 2px 4px;
+        border-radius: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>🤖 AI Chat Widget Demo</h1>
+      <p>This page demonstrates how to integrate the AI chat widget into your website.</p>
+      <p><strong>Look for the chat button in the bottom-right corner!</strong></p>
+    </div>
+
+    <div class="content">
+      <h2>How to Add This to Your Website</h2>
+
+      <h3>Step 1: Get Your Configuration</h3>
+      <p>Replace the configuration below with your actual tenant ID and settings:</p>
+
+      <div class="code-block">
+        <strong>Current Configuration:</strong><br />
+        • Tenant ID: <span class="highlight">REPLACE_WITH_YOUR_TENANT_ID</span><br />
+        • API URL: <span class="highlight">REPLACE_WITH_YOUR_API_URL</span><br />
+        • Primary Color: <span class="highlight">#007bff</span>
+      </div>
+
+      <h3>Step 2: Add the Code</h3>
+      <p>
+        Copy the script tags from the bottom of this page and paste them before the closing
+        <code>&lt;/body&gt;</code> tag in your HTML.
+      </p>
+
+      <h3>Step 3: Customize (Optional)</h3>
+      <p>You can customize:</p>
+      <ul>
+        <li><strong>Colors:</strong> Change primaryColor to match your brand</li>
+        <li><strong>Position:</strong> Move widget to different corners</li>
+        <li><strong>Messages:</strong> Customize welcome message and placeholder</li>
+        <li><strong>Branding:</strong> Show/hide "Powered by" footer</li>
+      </ul>
+
+      <h3>Step 4: Test</h3>
+      <p>Click the chat button in the bottom-right corner to test the widget!</p>
+
+      <div class="code-block">
+        <strong>💡 Pro Tip:</strong> Use the
+        <a href="/widget-generator" target="_blank">Widget Generator</a>
+        for a visual configuration tool with live preview.
+      </div>
+    </div>
+
+    <!-- AI Chat Widget Integration -->
+    <!-- REPLACE THE VALUES BELOW WITH YOUR ACTUAL CONFIGURATION -->
+    <script>
+      window.ChatWidgetConfig = {
+        tenantId: 'REPLACE_WITH_YOUR_TENANT_ID', // Get this from your dashboard
+        apiUrl: 'REPLACE_WITH_YOUR_API_URL', // e.g., 'https://your-domain.com/api'
+        theme: {
+          primaryColor: '#007bff', // Your brand color
+          textColor: '#333333',
+        },
+        welcomeMessage: "Hi! I'm here to help you book an appointment. How can I assist you today?",
+        placeholder: 'Type your message...',
+        position: 'bottom-right', // bottom-right, bottom-left, top-right, top-left
+        showBranding: true, // Show "Powered by" footer
+        bookingUrl: null, // Optional fallback booking link
+      };
+    </script>
+    <script src="REPLACE_WITH_YOUR_DOMAIN/chat-widget.js"></script>
+    <!-- End AI Chat Widget -->
+
+    <script>
+      // Show configuration info on page load
+      document.addEventListener('DOMContentLoaded', function () {
+        const config = window.ChatWidgetConfig;
+        if (config.tenantId === 'REPLACE_WITH_YOUR_TENANT_ID') {
+          console.warn(
+            '⚠️ Please replace the placeholder values in ChatWidgetConfig with your actual configuration!'
+          );
+        }
+      });
+    </script>
+  </body>
+</html>

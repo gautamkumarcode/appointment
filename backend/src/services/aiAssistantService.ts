@@ -99,12 +99,16 @@ class AIAssistantService {
   ): Promise<IAIConversation> {
     let conversation: IAIConversation | null = null;
 
-    if (externalId) {
-      conversation = await AIConversation.findOne({
-        channel,
-        externalId,
-      });
+    // Generate unique externalId if not provided to avoid duplicate key errors
+    if (!externalId) {
+      externalId = `${channel}-${tenantId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     }
+
+    // Try to find existing conversation
+    conversation = await AIConversation.findOne({
+      channel,
+      externalId,
+    });
 
     if (!conversation) {
       conversation = new AIConversation({
@@ -230,7 +234,7 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
         };
       }
 
-      if (intent === 'booking') {
+      if (intent === 'booking' || this.isInBookingFlow(context.conversationHistory)) {
         const response = await this.handleBookingFlow(
           context.tenantId,
           message,
@@ -238,7 +242,7 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
         );
         return {
           message: response,
-          intent,
+          intent: 'booking',
           requiresFollowUp: true,
           metadata: { handledDirectly: true },
         };
@@ -764,6 +768,7 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
     const lowerMessage = message.toLowerCase();
     const today = new Date();
 
+    // Handle relative dates
     if (lowerMessage.includes('today')) {
       return 'today';
     }
@@ -774,13 +779,63 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
       return tomorrow.toISOString().split('T')[0];
     }
 
-    // Handle day names
+    // Handle "next" + day name
     const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
     for (let i = 0; i < dayNames.length; i++) {
       if (lowerMessage.includes(dayNames[i])) {
-        const targetDay = this.getNextWeekday(i + 1); // getDay() returns 0-6, we need 1-7
+        const targetDay = this.getNextWeekday(i + 1);
         return targetDay.toISOString().split('T')[0];
       }
+    }
+
+    // Handle month names with day numbers
+    const monthNames = [
+      'january',
+      'february',
+      'march',
+      'april',
+      'may',
+      'june',
+      'july',
+      'august',
+      'september',
+      'october',
+      'november',
+      'december',
+    ];
+
+    for (let i = 0; i < monthNames.length; i++) {
+      const monthPattern = new RegExp(`${monthNames[i]}\\s+(\\d{1,2})(?:st|nd|rd|th)?`, 'i');
+      const match = message.match(monthPattern);
+      if (match) {
+        const day = parseInt(match[1]);
+        const year = today.getFullYear();
+        const parsedDate = new Date(year, i, day);
+
+        // If the date is in the past, assume next year
+        if (parsedDate < today) {
+          parsedDate.setFullYear(year + 1);
+        }
+
+        return parsedDate.toISOString().split('T')[0];
+      }
+    }
+
+    // Handle ordinal dates like "15th", "22nd"
+    const ordinalPattern = /(\d{1,2})(?:st|nd|rd|th)/i;
+    const ordinalMatch = message.match(ordinalPattern);
+    if (ordinalMatch) {
+      const day = parseInt(ordinalMatch[1]);
+      const currentMonth = today.getMonth();
+      const currentYear = today.getFullYear();
+
+      // Try current month first, then next month if date has passed
+      let parsedDate = new Date(currentYear, currentMonth, day);
+      if (parsedDate < today) {
+        parsedDate = new Date(currentYear, currentMonth + 1, day);
+      }
+
+      return parsedDate.toISOString().split('T')[0];
     }
 
     // Handle this week / next week
@@ -794,34 +849,35 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
       return nextWeek.toISOString().split('T')[0];
     }
 
-    // Handle date patterns like MM/DD, MM/DD/YYYY, YYYY-MM-DD
+    // Handle date patterns like MM/DD, MM/DD/YYYY, YYYY-MM-DD, DD/MM
     const datePatterns = [
-      /(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/,
-      /(\d{4})-(\d{2})-(\d{2})/,
-      /(\d{1,2})[-\.](\d{1,2})[-\.](\d{2,4})/,
+      { pattern: /(\d{4})-(\d{1,2})-(\d{1,2})/, format: 'YYYY-MM-DD' },
+      { pattern: /(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/, format: 'MM/DD/YYYY' },
+      { pattern: /(\d{1,2})[-\.](\d{1,2})[-\.](\d{2,4})/, format: 'MM-DD-YYYY' },
+      { pattern: /(\d{1,2})\s+(\d{1,2})(?:\s+(\d{2,4}))?/, format: 'MM DD YYYY' },
     ];
 
-    for (const pattern of datePatterns) {
+    for (const { pattern, format } of datePatterns) {
       const match = message.match(pattern);
       if (match) {
         try {
           let year, month, day;
 
-          if (pattern.source.includes('\\d{4}')) {
-            // YYYY-MM-DD format
+          if (format === 'YYYY-MM-DD') {
             [, year, month, day] = match;
           } else {
-            // MM/DD or MM/DD/YY format
             [, month, day, year] = match;
             if (!year) {
               year = today.getFullYear().toString();
             } else if (year.length === 2) {
-              year = '20' + year;
+              const currentYear = today.getFullYear();
+              const century = Math.floor(currentYear / 100) * 100;
+              year = (century + parseInt(year)).toString();
             }
           }
 
           const parsedDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-          if (!isNaN(parsedDate.getTime())) {
+          if (!isNaN(parsedDate.getTime()) && parsedDate.getFullYear() > 1900) {
             return parsedDate.toISOString().split('T')[0];
           }
         } catch (error) {
@@ -830,7 +886,7 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
       }
     }
 
-    // Default to today if no specific date found
+    // If no date pattern found, don't default to today
     return 'today';
   }
 
@@ -934,14 +990,12 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
   extractBookingIntent(message: string): BookingIntent | null {
     const lowerMessage = message.toLowerCase();
 
-    if (
-      !lowerMessage.includes('book') &&
-      !lowerMessage.includes('appointment') &&
-      !lowerMessage.includes('schedule') &&
-      !lowerMessage.includes('reserve')
-    ) {
-      return null;
-    }
+    // Check if this is a booking-related message
+    const isBookingMessage = 
+      lowerMessage.includes('book') ||
+      lowerMessage.includes('appointment') ||
+      lowerMessage.includes('schedule') ||
+      lowerMessage.includes('reserve');
 
     const intent: BookingIntent = {
       type: 'booking',
@@ -951,8 +1005,10 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
     const emailPattern = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/;
     const phonePattern = /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b|\b\(\d{3}\)\s?\d{3}[-.]?\d{4}\b/;
     const namePatterns = [
-      /(?:my name is|i'm|i am|call me)\s+([a-zA-Z\s]+?)(?:\s+and|\s*,|$)/i,
-      /(?:name:?\s*)([a-zA-Z\s]+?)(?:\s+email|\s*,|$)/i,
+      /(?:my name is|i'm|i am|call me)\s+([a-zA-Z\s]+?)(?:\s+and|\s*,|\s*\.|\s*$)/i,
+      /(?:name:?\s*)([a-zA-Z\s]+?)(?:\s+email|\s*,|\s*\.|\s*$)/i,
+      /^([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s*$/, // Just a name by itself
+      /^([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s+[a-zA-Z0-9._%+-]+@/, // Name followed by email
     ];
 
     const emailMatch = message.match(emailPattern);
@@ -961,17 +1017,32 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
     let nameMatch = null;
     for (const pattern of namePatterns) {
       nameMatch = message.match(pattern);
-      if (nameMatch) break;
+      if (nameMatch && nameMatch[1]) {
+        const extractedName = nameMatch[1].trim();
+        // Validate it's a reasonable name (2-50 chars, only letters and spaces)
+        if (
+          extractedName.length >= 2 &&
+          extractedName.length <= 50 &&
+          /^[a-zA-Z\s]+$/.test(extractedName)
+        ) {
+          break;
+        } else {
+          nameMatch = null;
+        }
+      }
     }
 
+    // If we found customer info, create intent even if not explicitly booking-related
     if (emailMatch || phoneMatch || nameMatch) {
       intent.customerInfo = {};
       if (emailMatch) intent.customerInfo.email = emailMatch[0];
       if (phoneMatch) intent.customerInfo.phone = phoneMatch[0];
       if (nameMatch) intent.customerInfo.name = nameMatch[1].trim();
+      return intent;
     }
 
-    return intent;
+    // Only return booking intent if it's explicitly booking-related
+    return isBookingMessage ? intent : null;
   }
 
   /**
@@ -1058,23 +1129,44 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
   ): Promise<string> {
     try {
       const lowerMessage = message.toLowerCase();
+      
+      logger.info('Booking flow - Processing message:', { message, tenantId });
 
       // Extract any previous customer info from conversation history
       const previousInfo = this.extractInfoFromHistory(conversationHistory);
+      
+      // Extract previous booking state from conversation history
+      const previousBookingState = this.extractBookingStateFromHistory(conversationHistory);
 
       // Extract booking intent and collect information from current message
       const bookingIntent = this.extractBookingIntent(message);
-      const currentInfo = bookingIntent?.customerInfo || {};
+      const currentInfo =
+        bookingIntent?.customerInfo || this.extractCustomerInfoFromMessage(message);
 
       // Combine all available information
       const combinedInfo = { ...previousInfo, ...currentInfo };
+      
+      logger.info('Booking flow - Customer info:', { previousInfo, currentInfo, combinedInfo });
+      logger.info('Booking flow - Previous booking state:', previousBookingState);
 
-      // Extract service preference from message
-      let serviceId: string | undefined = bookingIntent?.serviceId;
-      let serviceName: string | undefined;
+      // Extract service preference from message and history
+      let serviceId: string | undefined = bookingIntent?.serviceId || previousBookingState.serviceId;
+      let serviceName: string | undefined = previousBookingState.serviceName;
+
+      // If we have a stored service selection (like "service_1"), resolve it to actual service
+      if (!serviceId && serviceName && serviceName.startsWith('service_')) {
+        const services = await this.getServiceInfo(tenantId);
+        const serviceIndex = parseInt(serviceName.split('_')[1]) - 1;
+        if (serviceIndex >= 0 && serviceIndex < services.length) {
+          serviceId = services[serviceIndex].id;
+          serviceName = services[serviceIndex].name;
+        }
+      }
 
       if (!serviceId) {
         const services = await this.getServiceInfo(tenantId);
+        
+        // Try to match service from current message
         for (const service of services) {
           if (lowerMessage.includes(service.name.toLowerCase())) {
             serviceId = service.id;
@@ -1082,12 +1174,35 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
             break;
           }
         }
+        
+        // If still no service found, check if user is selecting by number or position
+        if (!serviceId && services.length > 0) {
+          const numberMatch = message.match(/(\d+)/);
+          if (numberMatch) {
+            const selectedIndex = parseInt(numberMatch[1]) - 1;
+            if (selectedIndex >= 0 && selectedIndex < services.length) {
+              serviceId = services[selectedIndex].id;
+              serviceName = services[selectedIndex].name;
+            }
+          }
+          
+          // Check for first/second/third etc.
+          const ordinalWords = ['first', 'second', 'third', 'fourth', 'fifth'];
+          for (let i = 0; i < ordinalWords.length && i < services.length; i++) {
+            if (lowerMessage.includes(ordinalWords[i])) {
+              serviceId = services[i].id;
+              serviceName = services[i].name;
+              break;
+            }
+          }
+        }
       }
 
-      // Extract date and time preferences
-      let preferredDate = bookingIntent?.preferredDate;
-      let preferredTime = bookingIntent?.preferredTime;
+      // Extract date and time preferences from current message and history
+      let preferredDate = bookingIntent?.preferredDate || previousBookingState.preferredDate;
+      let preferredTime = bookingIntent?.preferredTime || previousBookingState.preferredTime;
 
+      // Try to extract from current message if not found in history
       if (!preferredDate) {
         preferredDate = this.extractDateFromMessage(message);
       }
@@ -1095,6 +1210,16 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
       if (!preferredTime) {
         preferredTime = this.extractTimeFromMessage(message);
       }
+
+      logger.info('Booking flow - Date/Time extraction:', { 
+        message, 
+        preferredDate, 
+        preferredTime,
+        bookingIntentDate: bookingIntent?.preferredDate,
+        bookingIntentTime: bookingIntent?.preferredTime,
+        historyDate: previousBookingState.preferredDate,
+        historyTime: previousBookingState.preferredTime
+      });
 
       // Extract payment preference
       let paymentOption: 'prepaid' | 'pay_at_venue' = 'pay_at_venue';
@@ -1109,7 +1234,18 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
       // Check what information we still need
       const validation = this.validateCustomerInfo(combinedInfo);
       const needsService = !serviceId;
-      const needsDateTime = !preferredDate || !preferredTime;
+      const needsDateTime = !preferredDate || !preferredTime || preferredDate === 'today';
+
+      logger.info('Booking flow - Validation check:', { 
+        validation, 
+        needsService, 
+        needsDateTime,
+        serviceId,
+        serviceName,
+        preferredDate,
+        preferredTime,
+        combinedInfo
+      });
 
       // If this is the initial booking request
       if (
@@ -1144,7 +1280,11 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
 
       // If we're missing date/time
       if (needsDateTime) {
-        return `Perfect! I'll book ${serviceName || 'your service'} for you. When would you like to schedule your appointment? Please let me know your preferred date and time.`;
+        if (!preferredDate || preferredDate === 'today') {
+          return `Perfect! I'll book ${serviceName || 'your service'} for you. When would you like to schedule your appointment? Please provide your preferred date (e.g., "December 15th", "tomorrow", "next Monday", or "12/15/2024").`;
+        } else if (!preferredTime) {
+          return `Great! I have your date as ${preferredDate}. What time would you prefer? Please provide a time like "2:30 PM", "9 AM", or "14:00".`;
+        }
       }
 
       // We have all information - proceed with booking
@@ -1202,6 +1342,66 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
   }
 
   /**
+   * Extract booking state from conversation history
+   */
+  private extractBookingStateFromHistory(history: IAIMessage[]): {
+    serviceId?: string;
+    serviceName?: string;
+    preferredDate?: string;
+    preferredTime?: string;
+  } {
+    const state: {
+      serviceId?: string;
+      serviceName?: string;
+      preferredDate?: string;
+      preferredTime?: string;
+    } = {};
+
+    // Look through all user messages for date/time/service information
+    for (const message of history) {
+      if (message.role === 'user') {
+        // Extract date if not already found
+        if (!state.preferredDate) {
+          const extractedDate = this.extractDateFromMessage(message.content);
+          if (extractedDate && extractedDate !== 'today') {
+            state.preferredDate = extractedDate;
+          }
+        }
+
+        // Extract time if not already found
+        if (!state.preferredTime) {
+          const extractedTime = this.extractTimeFromMessage(message.content);
+          if (extractedTime) {
+            state.preferredTime = extractedTime;
+          }
+        }
+
+        // Extract service selection (numbers, ordinals, or service names)
+        if (!state.serviceId && !state.serviceName) {
+          const lowerContent = message.content.toLowerCase();
+          
+          // Check for number selection (1, 2, 3, etc.)
+          const numberMatch = message.content.match(/(\d+)/);
+          if (numberMatch) {
+            state.serviceName = `service_${numberMatch[1]}`;
+          }
+          
+          // Check for ordinal selection (first, second, etc.)
+          const ordinalWords = ['first', 'second', 'third', 'fourth', 'fifth'];
+          for (let i = 0; i < ordinalWords.length; i++) {
+            if (lowerContent.includes(ordinalWords[i])) {
+              state.serviceName = `service_${i + 1}`;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    return state;
+  }
+
+  /**
    * Extract customer info from conversation history
    */
   private extractInfoFromHistory(
@@ -1217,7 +1417,32 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
         const phoneMatch = message.content.match(
           /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b|\b\(\d{3}\)\s?\d{3}[-.]?\d{4}\b/
         );
-        const nameMatch = message.content.match(/(?:my name is|i'm|i am)\s+([a-zA-Z\s]+)/i);
+
+        // Enhanced name extraction patterns
+        const namePatterns = [
+          /(?:my name is|i'm|i am|call me)\s+([a-zA-Z\s]+?)(?:\s+and|\s*,|\s*\.|\s*$)/i,
+          /(?:name:?\s*)([a-zA-Z\s]+?)(?:\s+email|\s*,|\s*\.|\s*$)/i,
+          /^([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s*$/, // Just a name by itself
+          /^([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s+[a-zA-Z0-9._%+-]+@/, // Name followed by email
+        ];
+
+        let nameMatch = null;
+        for (const pattern of namePatterns) {
+          nameMatch = message.content.match(pattern);
+          if (nameMatch && nameMatch[1]) {
+            const extractedName = nameMatch[1].trim();
+            // Validate it's a reasonable name (2-50 chars, only letters and spaces)
+            if (
+              extractedName.length >= 2 &&
+              extractedName.length <= 50 &&
+              /^[a-zA-Z\s]+$/.test(extractedName)
+            ) {
+              break;
+            } else {
+              nameMatch = null;
+            }
+          }
+        }
 
         if (emailMatch && !info.email) info.email = emailMatch[0];
         if (phoneMatch && !info.phone) info.phone = phoneMatch[0];
@@ -1226,6 +1451,69 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
     }
 
     return info;
+  }
+
+  /**
+   * Extract customer info from any message
+   */
+  private extractCustomerInfoFromMessage(message: string): Partial<{ name: string; email: string; phone: string }> {
+    const info: Partial<{ name: string; email: string; phone: string }> = {};
+
+    // Extract email
+    const emailMatch = message.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
+    if (emailMatch) info.email = emailMatch[0];
+
+    // Extract phone
+    const phoneMatch = message.match(/\b\d{3}[-.]?\d{3}[-.]?\d{4}\b|\b\(\d{3}\)\s?\d{3}[-.]?\d{4}\b/);
+    if (phoneMatch) info.phone = phoneMatch[0];
+
+    // Extract name with enhanced patterns
+    const namePatterns = [
+      /(?:my name is|i'm|i am|call me)\s+([a-zA-Z\s]+?)(?:\s+and|\s*,|\s*\.|\s*$)/i,
+      /(?:name:?\s*)([a-zA-Z\s]+?)(?:\s+email|\s*,|\s*\.|\s*$)/i,
+      /^([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s*$/, // Just a name by itself
+      /^([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s+[a-zA-Z0-9._%+-]+@/, // Name followed by email
+    ];
+
+    for (const pattern of namePatterns) {
+      const nameMatch = message.match(pattern);
+      if (nameMatch && nameMatch[1]) {
+        const extractedName = nameMatch[1].trim();
+        // Validate it's a reasonable name (2-50 chars, only letters and spaces)
+        if (extractedName.length >= 2 && extractedName.length <= 50 && /^[a-zA-Z\s]+$/.test(extractedName)) {
+          info.name = extractedName;
+          break;
+        }
+      }
+    }
+
+    return info;
+  }
+
+  /**
+   * Check if conversation is in booking flow
+   */
+  private isInBookingFlow(history: IAIMessage[]): boolean {
+    // Look at the last few assistant messages to see if we're asking for booking info
+    const recentAssistantMessages = history
+      .filter(msg => msg.role === 'assistant')
+      .slice(-3) // Check last 3 assistant messages
+      .map(msg => msg.content.toLowerCase());
+
+    const bookingKeywords = [
+      'book an appointment',
+      'your name',
+      'your email',
+      'which service',
+      'preferred date',
+      'preferred time',
+      'schedule your appointment',
+      'complete your booking'
+    ];
+
+    return recentAssistantMessages.some(content => 
+      bookingKeywords.some(keyword => content.includes(keyword))
+    );
   }
 
   /**
@@ -1248,7 +1536,15 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
    * Extract date from message text
    */
   private extractDateFromMessage(message: string): string | undefined {
-    return this.parseDate(message);
+    const result = this.parseDate(message);
+    logger.info('Date extraction:', { message, result });
+    
+    // Don't return 'today' as default if no date was actually found in the message
+    if (result === 'today' && !message.toLowerCase().includes('today')) {
+      return undefined;
+    }
+    
+    return result;
   }
 
   /**
@@ -1258,43 +1554,59 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
     const timePatterns = [
       /(\d{1,2}):(\d{2})\s*(am|pm)/i, // 2:30 PM
       /(\d{1,2})\s*(am|pm)/i, // 9 AM
-      /(\d{1,2}):(\d{2})/, // 14:00
+      /(\d{1,2}):(\d{2})(?!\s*(?:am|pm))/i, // 14:00 (not followed by am/pm)
       /(\d{1,2})\.(\d{2})/, // 14.30
+      /at\s+(\d{1,2}):(\d{2})\s*(am|pm)/i, // at 2:30 PM
+      /at\s+(\d{1,2})\s*(am|pm)/i, // at 9 AM
     ];
 
     for (const pattern of timePatterns) {
       const match = message.match(pattern);
       if (match) {
-        // Check if this is the AM/PM pattern without minutes
-        if (pattern.source.includes('am|pm') && !pattern.source.includes(':')) {
-          // Pattern: /(\d{1,2})\s*(am|pm)/i - "9 AM"
-          let hour = parseInt(match[1]);
-          const minute = 0;
-          const ampm = match[2].toLowerCase();
+        try {
+          let hour, minute, ampm;
 
-          if (ampm === 'pm' && hour !== 12) hour += 12;
-          if (ampm === 'am' && hour === 12) hour = 0;
+          // Check if this is the AM/PM pattern without minutes
+          if (pattern.source.includes('am|pm') && !pattern.source.includes(':')) {
+            // Pattern: /(\d{1,2})\s*(am|pm)/i - "9 AM" or "at 9 AM"
+            hour = parseInt(match[1]);
+            minute = 0;
+            ampm = match[2].toLowerCase();
 
-          return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        } else if (match[3]) {
-          // Has AM/PM with minutes - "2:30 PM"
-          let hour = parseInt(match[1]);
-          const minute = parseInt(match[2]);
-          const ampm = match[3].toLowerCase();
+            if (ampm === 'pm' && hour !== 12) hour += 12;
+            if (ampm === 'am' && hour === 12) hour = 0;
+          } else if (match[3]) {
+            // Has AM/PM with minutes - "2:30 PM" or "at 2:30 PM"
+            hour = parseInt(match[1]);
+            minute = parseInt(match[2]);
+            ampm = match[3].toLowerCase();
 
-          if (ampm === 'pm' && hour !== 12) hour += 12;
-          if (ampm === 'am' && hour === 12) hour = 0;
+            if (ampm === 'pm' && hour !== 12) hour += 12;
+            if (ampm === 'am' && hour === 12) hour = 0;
+          } else {
+            // 24-hour format - "14:00" or "14.30"
+            hour = parseInt(match[1]);
+            minute = match[2] ? parseInt(match[2]) : 0;
+          }
 
-          return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        } else {
-          // 24-hour format - "14:00" or "14.30"
-          const hour = parseInt(match[1]);
-          const minute = match[2] ? parseInt(match[2]) : 0;
-          return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+          // Validate time
+          if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+            const result = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+            logger.info('Time extraction successful:', {
+              message,
+              result,
+              pattern: pattern.source,
+            });
+            return result;
+          }
+        } catch (error) {
+          logger.warn('Time extraction error:', { message, error, pattern: pattern.source });
+          continue;
         }
       }
     }
 
+    logger.info('Time extraction failed - no pattern matched:', { message });
     return undefined;
   }
 

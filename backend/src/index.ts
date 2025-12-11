@@ -18,6 +18,7 @@ import publicBookingRoutes from './routes/publicBookingRoutes';
 import serviceRoutes from './routes/serviceRoutes';
 import staffRoutes from './routes/staffRoutes';
 import tenantRoutes from './routes/tenantRoutes';
+import widgetRoutes from './routes/widgetRoutes';
 import { logger } from './utils/logger';
 import cronScheduler from './workers/cronScheduler';
 import './workers/followUpWorker'; // Import to start the worker
@@ -119,6 +120,7 @@ app.use('/api/appointments', appointmentRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/widget', widgetRoutes);
 
 // Public routes (no authentication required)
 app.use('/api/public/appointments', publicAppointmentRoutes);

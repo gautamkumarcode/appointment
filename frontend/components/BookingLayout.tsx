@@ -1,9 +1,15 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { ReactNode } from 'react';
 import { cn } from '../lib/utils';
 
+const PublicChatWidget = dynamic(() => import('./PublicChatWidget'), {
+  ssr: false,
+});
+
 interface TenantBranding {
+  _id: string;
   businessName: string;
   logo?: string;
   primaryColor?: string;
@@ -87,6 +93,19 @@ export function BookingLayout({
         {/* Content */}
         <div className={cn('rounded-lg bg-white p-6 shadow-sm', className)}>{children}</div>
       </div>
+
+      {/* Chat Widget */}
+      {tenantBranding && (
+        <PublicChatWidget
+          tenantId={tenantBranding._id}
+          theme={{
+            primaryColor: primaryColor,
+            textColor: '#333333',
+          }}
+          welcomeMessage="Hi! I'm here to help you book an appointment. How can I assist you today?"
+          placeholder="Ask me anything about booking..."
+        />
+      )}
     </div>
   );
 }

@@ -107,6 +107,7 @@ export interface Customer {
 
 export interface Tenant {
   _id: string;
+  id?: string; // Keep for backward compatibility
   slug: string;
   businessName: string;
   email: string;
@@ -116,4 +117,8 @@ export interface Tenant {
   logo?: string;
   primaryColor?: string;
   settings: Record<string, any>;
+  // Widget configuration
+  chatWelcomeMessage?: string;
+  bookingUrl?: string;
+  showWidgetBranding?: boolean;
 }

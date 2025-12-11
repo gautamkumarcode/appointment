@@ -6,6 +6,7 @@ import {
   Calendar,
   ChevronLeft,
   Home,
+  MessageCircle,
   Settings,
   UserCheck,
   Users,
@@ -22,6 +23,7 @@ const navigation = [
   { name: 'Staff', href: '/dashboard/staff', icon: UserCheck },
   { name: 'Customers', href: '/dashboard/customers', icon: Users },
   { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
+  { name: 'Chat Widget', href: '/dashboard/widget-info', icon: MessageCircle },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 

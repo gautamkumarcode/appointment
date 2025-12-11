@@ -14,7 +14,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { copyToClipboardWithToast } from '@/lib/clipboard';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Check, Copy, ExternalLink, Save } from 'lucide-react';
+import { Check, Copy, ExternalLink, MessageCircle, Save } from 'lucide-react';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -27,6 +28,10 @@ const settingsSchema = z.object({
   timezone: z.string().min(1, 'Please select a timezone'),
   currency: z.string().min(3, 'Please select a currency'),
   primaryColor: z.string().optional(),
+  // Widget configuration
+  chatWelcomeMessage: z.string().optional(),
+  bookingUrl: z.string().url().optional().or(z.literal('')),
+  showWidgetBranding: z.boolean().optional(),
 });
 
 const notificationSchema = z.object({
@@ -296,6 +301,62 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* Chat Widget Configuration */}
+        <div className="rounded-lg bg-white shadow">
+          <div className="px-4 py-5 sm:p-6">
+            <h3 className="mb-4 text-lg font-medium leading-6 text-gray-900">AI Chat Widget</h3>
+            <p className="mb-4 text-sm text-gray-600">
+              Add an AI chat assistant to your website to help customers book appointments
+              automatically.
+            </p>
+
+            <div className="rounded-lg bg-blue-50 p-4">
+              <div className="flex items-start space-x-3">
+                <MessageCircle className="mt-0.5 h-6 w-6 text-blue-600" />
+                <div className="flex-1">
+                  <h4 className="mb-2 text-sm font-medium text-blue-900">
+                    Widget Setup & Configuration
+                  </h4>
+                  <p className="mb-3 text-sm text-blue-800">
+                    Get your tenant ID, embed code, and configure your chat widget settings.
+                  </p>
+                  <Link
+                    href="/dashboard/widget-info"
+                    className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  >
+                    <MessageCircle className="mr-2 h-4 w-4" />
+                    Open Widget Setup
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Link
+                href="/widget-generator"
+                className="flex items-center justify-between rounded-lg border border-gray-200 p-3 hover:border-gray-300 hover:bg-gray-50"
+              >
+                <div>
+                  <div className="text-sm font-medium text-gray-900">Widget Generator</div>
+                  <div className="text-xs text-gray-500">Visual configuration tool</div>
+                </div>
+                <ExternalLink className="h-4 w-4 text-gray-400" />
+              </Link>
+
+              <Link
+                href="/widget-showcase"
+                className="flex items-center justify-between rounded-lg border border-gray-200 p-3 hover:border-gray-300 hover:bg-gray-50"
+              >
+                <div>
+                  <div className="text-sm font-medium text-gray-900">Widget Examples</div>
+                  <div className="text-xs text-gray-500">Industry demos & templates</div>
+                </div>
+                <ExternalLink className="h-4 w-4 text-gray-400" />
+              </Link>
+            </div>
+          </div>
+        </div>
+
         {/* Business Information */}
         <div className="rounded-lg bg-white shadow">
           <div className="px-4 py-5 sm:p-6">
@@ -398,6 +459,57 @@ export default function SettingsPage() {
                     <span className="text-sm text-gray-500">
                       Used for buttons and accents in your booking page
                     </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Widget Configuration Section */}
+              <div className="border-t pt-6">
+                <h4 className="mb-4 text-base font-medium text-gray-900">Widget Configuration</h4>
+                <div className="space-y-4">
+                  <div>
+                    <Label
+                      htmlFor="chatWelcomeMessage"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      Chat Welcome Message
+                    </Label>
+                    <textarea
+                      {...register('chatWelcomeMessage')}
+                      id="chatWelcomeMessage"
+                      rows={3}
+                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="Hi! I'm here to help you book an appointment. How can I assist you today?"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      This message will be shown when customers first open the chat widget
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="bookingUrl" className="text-sm font-medium text-gray-700">
+                      Fallback Booking URL (Optional)
+                    </Label>
+                    <Input
+                      {...register('bookingUrl')}
+                      type="url"
+                      id="bookingUrl"
+                      className="mt-1"
+                      placeholder="https://your-booking-page.com"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Link shown when AI is unavailable (e.g., Calendly, booking page)
+                    </p>
+                    {errors.bookingUrl && (
+                      <p className="mt-1 text-sm text-red-600">{errors.bookingUrl.message}</p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox {...register('showWidgetBranding')} id="showWidgetBranding" />
+                    <Label htmlFor="showWidgetBranding" className="text-sm text-gray-700">
+                      Show "Powered by" branding in widget
+                    </Label>
                   </div>
                 </div>
               </div>

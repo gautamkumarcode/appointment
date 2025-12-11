@@ -30,6 +30,10 @@ const updateTenantSchema = z.object({
   logo: z.string().optional(),
   primaryColor: z.string().optional(),
   settings: z.record(z.unknown()).optional(),
+  // Widget configuration fields
+  chatWelcomeMessage: z.string().optional(),
+  bookingUrl: z.string().url().optional().or(z.literal('')),
+  showWidgetBranding: z.boolean().optional(),
 });
 
 // Configure multer for logo uploads
@@ -166,7 +170,8 @@ export class TenantController {
       res.status(200).json({
         success: true,
         data: {
-          id: tenant._id,
+          _id: tenant._id.toString(),
+          id: tenant._id.toString(), // Keep both for compatibility
           slug: tenant.slug,
           businessName: tenant.businessName,
           email: tenant.email,
@@ -176,7 +181,10 @@ export class TenantController {
           logo: tenant.logo,
           primaryColor: tenant.primaryColor,
           settings: tenant.settings,
-          bookingUrl: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/book/${tenant.slug}`,
+          // Widget configuration fields
+          chatWelcomeMessage: tenant.chatWelcomeMessage,
+          bookingUrl: tenant.bookingUrl,
+          showWidgetBranding: tenant.showWidgetBranding,
         },
       });
     } catch (error) {
@@ -328,6 +336,42 @@ export class TenantController {
       res.status(500).json({
         success: false,
         error: 'Failed to get tenant',
+      });
+    }
+  }
+
+  /**
+   * Register a domain for widget usage
+   */
+  async registerDomain(req: Request, res: Response): Promise<void> {
+    try {
+      const { domain } = req.body;
+      const tenantId = (req as any).tenantId;
+
+      if (!domain) {
+        res.status(400).json({
+          success: false,
+          error: 'Domain is required',
+        });
+        return;
+      }
+
+      // Clean up the domain (remove protocol, trailing slash, etc.)
+      const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+
+      const updatedTenant = await tenantService.addAllowedDomain(tenantId, cleanDomain);
+
+      res.json({
+        success: true,
+        data: {
+          allowedDomains: updatedTenant.allowedDomains,
+        },
+      });
+    } catch (error) {
+      logger.error('Error registering domain:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to register domain',
       });
     }
   }

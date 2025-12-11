@@ -10,6 +10,11 @@ export interface ITenant extends Document {
   logo?: string;
   primaryColor?: string;
   settings: Record<string, unknown>;
+  // Widget configuration
+  chatWelcomeMessage?: string;
+  bookingUrl?: string;
+  showWidgetBranding?: boolean;
+  allowedDomains?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -56,6 +61,21 @@ const TenantSchema = new Schema<ITenant>(
     settings: {
       type: Schema.Types.Mixed,
       default: {},
+    },
+    // Widget configuration
+    chatWelcomeMessage: {
+      type: String,
+    },
+    bookingUrl: {
+      type: String,
+    },
+    showWidgetBranding: {
+      type: Boolean,
+      default: true,
+    },
+    allowedDomains: {
+      type: [String],
+      default: [],
     },
   },
   {
