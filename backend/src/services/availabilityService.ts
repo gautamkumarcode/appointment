@@ -45,11 +45,14 @@ export interface AvailabilityWindow {
 export async function generateTimeSlots(params: SlotGenerationParams): Promise<TimeSlot[]> {
   const { tenantId, serviceId, staffId, startDate, endDate, timezone } = params;
 
-  // Validate tenant exists
-  const tenantExists = await Tenant.findById(tenantId);
-  if (!tenantExists) {
+  // Validate tenant exists and get tenant timezone
+  const tenant = await Tenant.findById(tenantId);
+  if (!tenant) {
     throw new Error('Tenant not found');
   }
+
+  // Use tenant timezone for interpreting staff working hours
+  const businessTimezone = tenant.timezone;
 
   // If no serviceId provided, return empty array (user needs to select a service first)
   if (!serviceId) {
@@ -111,7 +114,8 @@ export async function generateTimeSlots(params: SlotGenerationParams): Promise<T
   for (const day of days) {
     const daySlots = await generateSlotsForDay(
       day,
-      timezone,
+      timezone, // customer timezone for display
+      businessTimezone, // business timezone for working hours
       service,
       staff,
       existingAppointments,
@@ -128,7 +132,8 @@ export async function generateTimeSlots(params: SlotGenerationParams): Promise<T
  */
 async function generateSlotsForDay(
   day: Date,
-  timezone: string,
+  customerTimezone: string,
+  businessTimezone: string,
   service: any,
   staff: any | null,
   existingAppointments: any[],
@@ -159,7 +164,8 @@ async function generateSlotsForDay(
     const periodSlots = generateSlotsForPeriod(
       day,
       period,
-      timezone,
+      customerTimezone,
+      businessTimezone,
       service,
       staff,
       existingAppointments
@@ -176,7 +182,8 @@ async function generateSlotsForDay(
 function generateSlotsForPeriod(
   day: Date,
   period: { start: string; end: string },
-  timezone: string,
+  customerTimezone: string,
+  businessTimezone: string,
   service: any,
   staff: any | null,
   existingAppointments: any[]
@@ -187,16 +194,20 @@ function generateSlotsForPeriod(
   const [startHour, startMinute] = period.start.split(':').map(Number);
   const [endHour, endMinute] = period.end.split(':').map(Number);
 
-  // Create start and end times in customer timezone
-  const periodStart = new Date(day);
-  periodStart.setHours(startHour, startMinute, 0, 0);
+  // Create start and end times in business timezone
+  // Staff working hours are defined in the business timezone
+  const year = day.getFullYear();
+  const month = day.getMonth();
+  const dayOfMonth = day.getDate();
 
-  const periodEnd = new Date(day);
-  periodEnd.setHours(endHour, endMinute, 0, 0);
+  // Create date strings representing the working hours in business timezone
+  const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayOfMonth).padStart(2, '0')}`;
+  const periodStartStr = `${dateStr}T${String(startHour).padStart(2, '0')}:${String(startMinute).padStart(2, '0')}:00`;
+  const periodEndStr = `${dateStr}T${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}:00`;
 
-  // Convert to UTC
-  const periodStartUTC = toUTC(periodStart, timezone);
-  const periodEndUTC = toUTC(periodEnd, timezone);
+  // Convert from business timezone to UTC (staff working hours are in business timezone)
+  const periodStartUTC = toUTC(new Date(periodStartStr), businessTimezone);
+  const periodEndUTC = toUTC(new Date(periodEndStr), businessTimezone);
 
   // Generate slots
   let currentSlotStart = periodStartUTC;
@@ -228,17 +239,22 @@ function generateSlotsForPeriod(
       );
     });
 
-    if (!hasConflict) {
+    // Check if slot is in the past (only for today's date)
+    const now = new Date();
+    const isPastSlot = isBefore(currentSlotEnd, now);
+
+    // Only show future slots or current/future slots for today
+    if (!isPastSlot) {
       // Convert to customer timezone for display
-      const startTimeLocal = fromUTC(currentSlotStart, timezone);
-      const endTimeLocal = fromUTC(currentSlotEnd, timezone);
+      const startTimeLocal = fromUTC(currentSlotStart, customerTimezone);
+      const endTimeLocal = fromUTC(currentSlotEnd, customerTimezone);
 
       slots.push({
         startTime: currentSlotStart,
         endTime: currentSlotEnd,
         startTimeLocal: startTimeLocal.toISOString(),
         endTimeLocal: endTimeLocal.toISOString(),
-        available: true, // All generated slots are available
+        available: !hasConflict, // Available if no conflict, booked if has conflict
         staffId: staff?._id.toString(),
       });
     }
@@ -272,7 +288,7 @@ async function getExistingAppointments(
     query.staffId = staffId;
   }
 
-  const appointments = await Appointment.find(query).populate('service', 'bufferMinutes').lean();
+  const appointments = await Appointment.find(query).populate('serviceId', 'bufferMinutes').lean();
 
   return appointments;
 }

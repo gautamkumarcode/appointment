@@ -1,13 +1,25 @@
 'use client';
 
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
+import { copyToClipboardWithToast } from '@/lib/clipboard';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Check, Copy, ExternalLink, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { tenantApi } from '../../../lib/tenant-api';
 import { Tenant } from '../../../types';
-
 const settingsSchema = z.object({
   businessName: z.string().min(2, 'Business name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email address'),
@@ -52,6 +64,7 @@ const CURRENCIES = [
 ];
 
 export default function SettingsPage() {
+  const { toast } = useToast();
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -63,6 +76,7 @@ export default function SettingsPage() {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
     reset,
   } = useForm<SettingsFormData>({
@@ -184,18 +198,25 @@ export default function SettingsPage() {
 
   const getBookingUrl = () => {
     if (!tenant) return '';
-    const baseUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || window.location.origin;
+    const baseUrl =
+      process.env.NEXT_PUBLIC_FRONTEND_URL ||
+      (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
     return `${baseUrl}/book/${tenant.slug}`;
   };
 
   const copyBookingUrl = async () => {
-    try {
-      await navigator.clipboard.writeText(getBookingUrl());
-      setCopiedUrl(true);
-      setTimeout(() => setCopiedUrl(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy URL:', err);
-    }
+    const url = getBookingUrl();
+
+    await copyToClipboardWithToast(
+      url,
+      toast,
+      'Booking URL has been copied to your clipboard.',
+      'Unable to copy URL automatically. Please copy it manually from the input field.'
+    );
+
+    // Show visual feedback
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2000);
   };
 
   if (loading) {
@@ -247,17 +268,9 @@ export default function SettingsPage() {
             </p>
             <div className="flex items-center space-x-3">
               <div className="flex-1">
-                <input
-                  type="text"
-                  value={getBookingUrl()}
-                  readOnly
-                  className="block w-full rounded-md border-gray-300 bg-gray-50 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                />
+                <Input type="text" value={getBookingUrl()} readOnly className="bg-muted" />
               </div>
-              <button
-                onClick={copyBookingUrl}
-                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium leading-4 text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
+              <Button onClick={copyBookingUrl} variant="outline">
                 {copiedUrl ? (
                   <>
                     <Check className="mr-2 h-4 w-4" />
@@ -269,7 +282,7 @@ export default function SettingsPage() {
                     Copy
                   </>
                 )}
-              </button>
+              </Button>
               <a
                 href={getBookingUrl()}
                 target="_blank"
@@ -293,95 +306,95 @@ export default function SettingsPage() {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <label htmlFor="businessName" className="block text-sm font-medium text-gray-700">
+                  <Label htmlFor="businessName" className="text-sm font-medium text-gray-700">
                     Business Name *
-                  </label>
-                  <input
-                    {...register('businessName')}
-                    type="text"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  />
+                  </Label>
+                  <Input {...register('businessName')} type="text" className="mt-1" />
                   {errors.businessName && (
                     <p className="mt-1 text-sm text-red-600">{errors.businessName.message}</p>
                   )}
                 </div>
 
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                  <Label htmlFor="email" className="text-sm font-medium text-gray-700">
                     Email Address *
-                  </label>
-                  <input
-                    {...register('email')}
-                    type="email"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  />
+                  </Label>
+                  <Input {...register('email')} type="email" className="mt-1" />
                   {errors.email && (
                     <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
                   )}
                 </div>
 
                 <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                  <Label htmlFor="phone" className="text-sm font-medium text-gray-700">
                     Phone Number
-                  </label>
-                  <input
-                    {...register('phone')}
-                    type="tel"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  />
+                  </Label>
+                  <Input {...register('phone')} type="tel" className="mt-1" />
                   {errors.phone && (
                     <p className="mt-1 text-sm text-red-600">{errors.phone.message}</p>
                   )}
                 </div>
 
                 <div>
-                  <label htmlFor="timezone" className="block text-sm font-medium text-gray-700">
+                  <Label htmlFor="timezone" className="text-sm font-medium text-gray-700">
                     Timezone *
-                  </label>
-                  <select
-                    {...register('timezone')}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  >
-                    {TIMEZONES.map((tz) => (
-                      <option key={tz} value={tz}>
-                        {tz}
-                      </option>
-                    ))}
-                  </select>
+                  </Label>
+                  <Controller
+                    name="timezone"
+                    control={control}
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select a timezone" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TIMEZONES.map((tz) => (
+                            <SelectItem key={tz} value={tz}>
+                              {tz}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
                   {errors.timezone && (
                     <p className="mt-1 text-sm text-red-600">{errors.timezone.message}</p>
                   )}
                 </div>
 
                 <div>
-                  <label htmlFor="currency" className="block text-sm font-medium text-gray-700">
+                  <Label htmlFor="currency" className="text-sm font-medium text-gray-700">
                     Currency *
-                  </label>
-                  <select
-                    {...register('currency')}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  >
-                    {CURRENCIES.map((currency) => (
-                      <option key={currency.code} value={currency.code}>
-                        {currency.code} - {currency.name}
-                      </option>
-                    ))}
-                  </select>
+                  </Label>
+                  <Controller
+                    name="currency"
+                    control={control}
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select a currency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CURRENCIES.map((currency) => (
+                            <SelectItem key={currency.code} value={currency.code}>
+                              {currency.code} - {currency.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
                   {errors.currency && (
                     <p className="mt-1 text-sm text-red-600">{errors.currency.message}</p>
                   )}
                 </div>
 
                 <div>
-                  <label htmlFor="primaryColor" className="block text-sm font-medium text-gray-700">
+                  <Label htmlFor="primaryColor" className="text-sm font-medium text-gray-700">
                     Brand Color
-                  </label>
+                  </Label>
                   <div className="mt-1 flex items-center space-x-3">
-                    <input
-                      {...register('primaryColor')}
-                      type="color"
-                      className="h-10 w-20 rounded-md border border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    />
+                    <Input {...register('primaryColor')} type="color" className="h-10 w-20" />
                     <span className="text-sm text-gray-500">
                       Used for buttons and accents in your booking page
                     </span>
@@ -390,14 +403,10 @@ export default function SettingsPage() {
               </div>
 
               <div className="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                >
+                <Button type="submit" disabled={saving} variant="gradient">
                   <Save className="mr-2 h-4 w-4" />
                   {saving ? 'Saving...' : 'Save Changes'}
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -457,49 +466,33 @@ export default function SettingsPage() {
 
             <form onSubmit={handleNotificationSubmit(onNotificationSubmit)} className="space-y-6">
               <div className="space-y-4">
-                <div className="flex items-center">
-                  <input
-                    {...registerNotification('emailBookings')}
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <label className="ml-2 block text-sm text-gray-900">
+                <div className="flex items-center space-x-2">
+                  <Checkbox {...registerNotification('emailBookings')} />
+                  <Label className="text-sm text-gray-900">
                     Email notifications for new bookings
-                  </label>
+                  </Label>
                 </div>
 
-                <div className="flex items-center">
-                  <input
-                    {...registerNotification('emailCancellations')}
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <label className="ml-2 block text-sm text-gray-900">
+                <div className="flex items-center space-x-2">
+                  <Checkbox {...registerNotification('emailCancellations')} />
+                  <Label className="text-sm text-gray-900">
                     Email notifications for cancellations
-                  </label>
+                  </Label>
                 </div>
 
-                <div className="flex items-center">
-                  <input
-                    {...registerNotification('smsNotifications')}
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <label className="ml-2 block text-sm text-gray-900">
+                <div className="flex items-center space-x-2">
+                  <Checkbox {...registerNotification('smsNotifications')} />
+                  <Label className="text-sm text-gray-900">
                     SMS notifications (requires phone number)
-                  </label>
+                  </Label>
                 </div>
               </div>
 
               <div className="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                >
+                <Button type="submit" disabled={saving} variant="gradient">
                   <Save className="mr-2 h-4 w-4" />
                   {saving ? 'Saving...' : 'Save Notification Preferences'}
-                </button>
+                </Button>
               </div>
             </form>
           </div>

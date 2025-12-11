@@ -90,6 +90,41 @@ export async function getTenantInfo(req: Request, res: Response): Promise<void> 
 }
 
 /**
+ * Get tenant staff (public endpoint)
+ * GET /api/public/:tenantSlug/staff
+ */
+export async function getPublicStaff(req: Request, res: Response): Promise<void> {
+  try {
+    const tenantId = (req as any).tenantId;
+
+    if (!tenantId) {
+      res.status(404).json({ error: 'Tenant not found' });
+      return;
+    }
+
+    // Import staff service here to avoid circular dependencies
+    const { staffService } = await import('../services/staffService');
+
+    // Only return active staff for public booking
+    const staff = await staffService.listStaff(tenantId);
+
+    // Only return necessary fields for public booking
+    const publicStaff = staff.map(staffMember => ({
+      _id: staffMember._id,
+      name: staffMember.name,
+    }));
+
+    res.json({
+      success: true,
+      data: publicStaff,
+    });
+  } catch (error) {
+    logger.error('Error in getPublicStaff controller:', error);
+    res.status(500).json({ error: 'Failed to fetch staff' });
+  }
+}
+
+/**
  * Get tenant services (public endpoint)
  * GET /api/public/:tenantSlug/services
  */
@@ -153,13 +188,15 @@ export async function createPublicBooking(req: Request, res: Response): Promise<
     const appointment = await appointmentService.createAppointment(tenantId, appointmentData);
 
     // Transform the response to include customer data directly for easier access
+    // Note: appointment is already transformed by appointmentService, no need for toObject()
+    const transformedAppointment = appointment as any;
     const responseData = {
-      ...appointment.toObject(),
-      customerName: (appointment as any).customerId?.name || data.customerName,
-      customerEmail: (appointment as any).customerId?.email || data.customerEmail,
-      customerPhone: (appointment as any).customerId?.phone || data.customerPhone,
-      serviceName: (appointment as any).serviceId?.name,
-      staffName: (appointment as any).staffId?.name,
+      ...appointment,
+      customerName: transformedAppointment.customer?.name || data.customerName,
+      customerEmail: transformedAppointment.customer?.email || data.customerEmail,
+      customerPhone: transformedAppointment.customer?.phone || data.customerPhone,
+      serviceName: transformedAppointment.service?.name,
+      staffName: transformedAppointment.staff?.name,
     };
 
     res.status(201).json({
@@ -222,13 +259,15 @@ export async function getPublicAppointment(req: Request, res: Response): Promise
     }
 
     // Transform the response to include customer data directly for easier access
+    // Note: appointment is already transformed by appointmentService, no need for toObject()
+    const transformedAppointment = appointment as any;
     const responseData = {
-      ...appointment.toObject(),
-      customerName: (appointment as any).customerId?.name,
-      customerEmail: (appointment as any).customerId?.email,
-      customerPhone: (appointment as any).customerId?.phone,
-      serviceName: (appointment as any).serviceId?.name,
-      staffName: (appointment as any).staffId?.name,
+      ...appointment,
+      customerName: transformedAppointment.customer?.name,
+      customerEmail: transformedAppointment.customer?.email,
+      customerPhone: transformedAppointment.customer?.phone,
+      serviceName: transformedAppointment.service?.name,
+      staffName: transformedAppointment.staff?.name,
     };
 
     res.json({

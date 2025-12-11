@@ -22,6 +22,7 @@ import { logger } from './utils/logger';
 import cronScheduler from './workers/cronScheduler';
 import './workers/followUpWorker'; // Import to start the worker
 import './workers/reminderWorker'; // Import to start the worker
+const FileStore = require('session-file-store');
 
 dotenv.config();
 
@@ -32,7 +33,8 @@ const PORT = process.env.PORT || 4500;
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000' || 'http://192.168.1.13:3000',
+
     credentials: true, // Allow cookies
   })
 );
@@ -45,31 +47,44 @@ app.use('/api/payments/webhook', express.raw({ type: 'application/json' }), webh
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session configuration with debugging
+// Create session store
+const SessionFileStore = FileStore(session);
+const sessionStore = new SessionFileStore({
+  path: path.join(__dirname, '../sessions'),
+  ttl: 7 * 24 * 60 * 60, // 7 days in seconds
+  retries: 0,
+});
+
+// Session configuration with file store for persistence
 app.use(
   session({
+    store: sessionStore,
     secret: process.env.SESSION_SECRET || 'your-session-secret',
     resave: false,
     saveUninitialized: false,
-    name: 'sessionId',
+    name: 'connect.sid', // Use default name for compatibility
     cookie: {
       secure: false, // Set to false for development (HTTP)
       httpOnly: true, // Prevent XSS
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours (shorter for testing)
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days for better UX
       sameSite: 'lax', // CSRF protection
     },
+    rolling: true, // Reset expiration on each request
   })
 );
 
 // Session debugging middleware
 app.use((req, res, next) => {
-  if (req.path.includes('/auth/')) {
+  if (req.path.includes('/auth/') || req.path.includes('/api/')) {
     console.log('🔍 Session Debug:', {
       sessionID: req.sessionID,
       userId: req.session.userId,
       tenantId: req.session.tenantId,
       path: req.path,
       method: req.method,
+      hasSession: !!req.session,
+      cookieMaxAge: req.session.cookie?.maxAge,
+      sessionAge: req.session.cookie ? Date.now() - (req.session.cookie.maxAge || 0) : 'N/A',
     });
   }
   next();

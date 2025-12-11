@@ -1,7 +1,27 @@
 'use client';
 
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { X } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -31,17 +51,14 @@ interface ServiceFormProps {
   service?: Service | null;
   onSuccess: (service: Service) => void;
   onCancel: () => void;
+  open: boolean;
 }
 
-export default function ServiceForm({ service, onSuccess, onCancel }: ServiceFormProps) {
+export default function ServiceForm({ service, onSuccess, onCancel, open }: ServiceFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<ServiceFormData>({
+  const form = useForm<ServiceFormData>({
     resolver: zodResolver(serviceSchema),
     defaultValues: {
       name: service?.name || '',
@@ -62,7 +79,7 @@ export default function ServiceForm({ service, onSuccess, onCancel }: ServiceFor
     try {
       let result: Service;
       if (service) {
-        result = await serviceApi.updateService(service.id, data);
+        result = await serviceApi.updateService(service._id, data);
       } else {
         result = await serviceApi.createService(data as CreateServiceRequest);
       }
@@ -75,166 +92,183 @@ export default function ServiceForm({ service, onSuccess, onCancel }: ServiceFor
   };
 
   return (
-    <div className="fixed inset-0 z-50 h-full w-full overflow-y-auto bg-gray-600 bg-opacity-50">
-      <div className="relative top-20 mx-auto w-full max-w-md rounded-md border bg-white p-5 shadow-lg">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-medium text-gray-900">
-            {service ? 'Edit Service' : 'Create New Service'}
-          </h3>
-          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+    <Dialog open={open} onOpenChange={onCancel}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{service ? 'Edit Service' : 'Create New Service'}</DialogTitle>
+        </DialogHeader>
 
-        {error && (
-          <div className="mb-4 rounded-md bg-red-50 p-4">
-            <div className="text-sm text-red-700">{error}</div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-              Service Name *
-            </label>
-            <input
-              {...register('name')}
-              type="text"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-              placeholder="e.g., Haircut, Consultation"
-            />
-            {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>}
-          </div>
-
-          <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-              Description
-            </label>
-            <textarea
-              {...register('description')}
-              rows={3}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-              placeholder="Brief description of the service"
-            />
-            {errors.description && (
-              <p className="mt-1 text-sm text-red-600">{errors.description.message}</p>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="durationMinutes" className="block text-sm font-medium text-gray-700">
-                Duration (minutes) *
-              </label>
-              <input
-                {...register('durationMinutes', { valueAsNumber: true })}
-                type="number"
-                min="5"
-                max="480"
-                step="5"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-              />
-              {errors.durationMinutes && (
-                <p className="mt-1 text-sm text-red-600">{errors.durationMinutes.message}</p>
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Service Name *</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., Haircut, Consultation" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
-            </div>
+            />
 
-            <div>
-              <label htmlFor="bufferMinutes" className="block text-sm font-medium text-gray-700">
-                Buffer Time (minutes)
-              </label>
-              <input
-                {...register('bufferMinutes', { valueAsNumber: true })}
-                type="number"
-                min="0"
-                max="120"
-                step="5"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-              />
-              {errors.bufferMinutes && (
-                <p className="mt-1 text-sm text-red-600">{errors.bufferMinutes.message}</p>
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Brief description of the service" rows={3} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
-            </div>
-          </div>
+            />
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="price" className="block text-sm font-medium text-gray-700">
-                Price *
-              </label>
-              <input
-                {...register('price', { valueAsNumber: true })}
-                type="number"
-                min="0"
-                step="0.01"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="durationMinutes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Duration (minutes) *</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="5"
+                        max="480"
+                        step="5"
+                        {...field}
+                        onChange={(e) => field.onChange(parseInt(e.target.value))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-              {errors.price && <p className="mt-1 text-sm text-red-600">{errors.price.message}</p>}
-            </div>
 
-            <div>
-              <label htmlFor="currency" className="block text-sm font-medium text-gray-700">
-                Currency *
-              </label>
-              <select
-                {...register('currency')}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-              >
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-                <option value="GBP">GBP</option>
-                <option value="INR">INR</option>
-                <option value="CAD">CAD</option>
-                <option value="AUD">AUD</option>
-              </select>
-              {errors.currency && (
-                <p className="mt-1 text-sm text-red-600">{errors.currency.message}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center">
-              <input
-                {...register('requireStaff')}
-                type="checkbox"
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              <FormField
+                control={form.control}
+                name="bufferMinutes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Buffer Time (minutes)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="120"
+                        step="5"
+                        {...field}
+                        onChange={(e) => field.onChange(parseInt(e.target.value))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-              <label className="ml-2 block text-sm text-gray-900">
-                Require staff member selection
-              </label>
             </div>
 
-            <div className="flex items-center">
-              <input
-                {...register('isActive')}
-                type="checkbox"
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="price"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Price *</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        {...field}
+                        onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-              <label className="ml-2 block text-sm text-gray-900">
-                Service is active and bookable
-              </label>
-            </div>
-          </div>
 
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isLoading ? 'Saving...' : service ? 'Update Service' : 'Create Service'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+              <FormField
+                control={form.control}
+                name="currency"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Currency *</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select currency" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="USD">USD</SelectItem>
+                        <SelectItem value="EUR">EUR</SelectItem>
+                        <SelectItem value="GBP">GBP</SelectItem>
+                        <SelectItem value="INR">INR</SelectItem>
+                        <SelectItem value="CAD">CAD</SelectItem>
+                        <SelectItem value="AUD">AUD</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="space-y-3">
+              <FormField
+                control={form.control}
+                name="requireStaff"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Require staff member selection</FormLabel>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="isActive"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Service is active and bookable</FormLabel>
+                    </div>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4">
+              <Button type="button" variant="outline" onClick={onCancel}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="gradient" disabled={isLoading}>
+                {isLoading ? 'Saving...' : service ? 'Update Service' : 'Create Service'}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -59,8 +59,8 @@ export default function ReschedulePage() {
       if (!appointment) return Promise.resolve([]);
 
       return bookingApi.getAvailability(tenantSlug, {
-        serviceId: appointment.serviceId,
-        staffId: appointment.staffId,
+        serviceId: appointment.serviceId._id,
+        staffId: appointment.staffId?._id,
         date: format(selectedDate, 'yyyy-MM-dd'),
         timezone: appointment.customerTimezone,
       });
@@ -163,12 +163,12 @@ export default function ReschedulePage() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-600">Service:</span>
-              <span className="font-medium">{appointment.service?.name}</span>
+              <span className="font-medium">{appointment.serviceId?.name}</span>
             </div>
-            {appointment.staff && (
+            {appointment.staffId && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Staff:</span>
-                <span className="font-medium">{appointment.staff.name}</span>
+                <span className="font-medium">{appointment.staffId.name}</span>
               </div>
             )}
             <div className="flex justify-between">
@@ -178,7 +178,7 @@ export default function ReschedulePage() {
             <div className="flex justify-between">
               <span className="text-gray-600">Duration:</span>
               <span className="font-medium">
-                {formatDuration(appointment.service?.durationMinutes || 0)}
+                {formatDuration(appointment.serviceId?.durationMinutes || 0)}
               </span>
             </div>
           </div>

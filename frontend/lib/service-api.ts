@@ -9,6 +9,7 @@ export interface CreateServiceRequest {
   currency: string;
   bufferMinutes: number;
   requireStaff: boolean;
+  isActive: boolean;
 }
 
 export interface UpdateServiceRequest extends Partial<CreateServiceRequest> {}

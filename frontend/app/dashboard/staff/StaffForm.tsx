@@ -1,5 +1,8 @@
 'use client';
 
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { X } from 'lucide-react';
 import { useState } from 'react';
@@ -64,7 +67,7 @@ export default function StaffForm({ staff, onSuccess, onCancel }: StaffFormProps
 
       let result: Staff;
       if (staff) {
-        result = await staffApi.updateStaff(staff.id, staffData);
+        result = await staffApi.updateStaff(staff._id, staffData);
       } else {
         result = await staffApi.createStaff(staffData as CreateStaffRequest);
       }
@@ -96,39 +99,39 @@ export default function StaffForm({ staff, onSuccess, onCancel }: StaffFormProps
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+            <Label htmlFor="name" className="text-sm font-medium text-gray-700">
               Full Name *
-            </label>
-            <input
+            </Label>
+            <Input
               {...register('name')}
               type="text"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              className="mt-1"
               placeholder="Enter staff member's name"
             />
             {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>}
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+            <Label htmlFor="email" className="text-sm font-medium text-gray-700">
               Email Address
-            </label>
-            <input
+            </Label>
+            <Input
               {...register('email')}
               type="email"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              className="mt-1"
               placeholder="Enter email address"
             />
             {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>}
           </div>
 
           <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+            <Label htmlFor="phone" className="text-sm font-medium text-gray-700">
               Phone Number
-            </label>
-            <input
+            </Label>
+            <Input
               {...register('phone')}
               type="tel"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              className="mt-1"
               placeholder="Enter phone number"
             />
             {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone.message}</p>}
@@ -144,20 +147,12 @@ export default function StaffForm({ staff, onSuccess, onCancel }: StaffFormProps
           )}
 
           <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
+            <Button type="button" onClick={onCancel} variant="outline">
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            >
+            </Button>
+            <Button type="submit" disabled={isLoading} variant="gradient">
               {isLoading ? 'Saving...' : staff ? 'Update Staff Member' : 'Add Staff Member'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

@@ -199,8 +199,22 @@ export async function getPublicAvailableSlots(req: Request, res: Response): Prom
 
     // Parse dates or use defaults
     // Use 'date' parameter if provided, otherwise use startDate/endDate
-    const start = date ? parseISO(date) : startDate ? parseISO(startDate) : new Date();
-    const end = date ? parseISO(date) : endDate ? parseISO(endDate) : addDays(new Date(), 30);
+    // When parsing date strings like "2024-12-11", we need to treat them as being in the customer's timezone
+    let start: Date;
+    let end: Date;
+
+    if (date) {
+      // Create a date in the customer's timezone for the given date string
+      const [year, month, day] = date.split('-').map(Number);
+      start = new Date(year, month - 1, day); // month is 0-indexed
+      end = new Date(year, month - 1, day);
+    } else if (startDate && endDate) {
+      start = parseISO(startDate);
+      end = parseISO(endDate);
+    } else {
+      start = new Date();
+      end = addDays(new Date(), 30);
+    }
 
     // Generate slots
     const params: SlotGenerationParams = {
@@ -215,7 +229,7 @@ export async function getPublicAvailableSlots(req: Request, res: Response): Prom
     const slots = await generateTimeSlots(params);
 
     // Transform slots to match frontend expectations
-    const transformedSlots = slots.map(slot => ({
+    const transformedSlots = slots.map((slot) => ({
       startTime: slot.startTime.toISOString(),
       endTime: slot.endTime.toISOString(),
       available: slot.available,

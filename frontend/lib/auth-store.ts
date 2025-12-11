@@ -38,8 +38,17 @@ export const useAuthStore = create<AuthState>()((set) => ({
       const user = await authApi.getMe();
       console.log('✅ Authentication successful:', user);
       set({ user, isAuthenticated: true, isLoading: false });
-    } catch (error) {
+    } catch (error: any) {
       console.log('❌ Authentication failed:', error);
+
+      // Only redirect to login if it's a 401 (unauthorized) error
+      // Don't redirect for network errors or other issues
+      if (error?.response?.status === 401) {
+        console.log('🔄 Session expired, clearing auth state');
+      } else {
+        console.log('🌐 Network or other error, keeping current state');
+      }
+
       set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },

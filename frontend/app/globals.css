@@ -4,48 +4,81 @@
 
 @layer base {
   :root {
+    /* Sky-blue to Blue Theme Colors */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    
+    /* Primary: Sky Blue (#0ea5e9) */
+    --primary: 199 89% 48%;
+    --primary-foreground: 0 0% 100%;
+    
+    /* Secondary: Light Sky Blue (#38bdf8) */
+    --secondary: 199 95% 74%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    
+    /* Muted: Very Light Sky Blue */
+    --muted: 199 95% 95%;
+    --muted-foreground: 199 25% 45%;
+    
+    /* Accent: Medium Sky Blue */
+    --accent: 199 95% 85%;
+    --accent-foreground: 199 89% 25%;
+    
+    /* Success: Green */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    
+    /* Warning: Orange */
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    
+    /* Destructive: Red */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    /* Borders and Inputs: Light Sky Blue tint */
+    --border: 199 50% 90%;
+    --input: 199 50% 90%;
+    --ring: 199 89% 48%;
     --radius: 0.5rem;
   }
 
   .dark {
+    /* Dark theme with sky-blue accents */
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    
+    /* Primary: Lighter Sky Blue for dark mode */
+    --primary: 199 95% 74%;
+    --primary-foreground: 222.2 84% 4.9%;
+    
+    /* Secondary: Dark Blue */
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
+    
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
+    
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
+    
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --ring: 199 95% 74%;
   }
 }
 
@@ -55,5 +88,76 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  /* Custom button variants with your theme colors */
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-2 focus:ring-primary focus:ring-offset-2;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary/80 focus:ring-2 focus:ring-secondary focus:ring-offset-2;
+  }
+  
+  .btn-success {
+    @apply bg-green-500 text-white hover:bg-green-600 focus:ring-2 focus:ring-green-500 focus:ring-offset-2;
+  }
+  
+  .btn-warning {
+    @apply bg-amber-500 text-white hover:bg-amber-600 focus:ring-2 focus:ring-amber-500 focus:ring-offset-2;
+  }
+  
+  .btn-danger {
+    @apply bg-destructive text-destructive-foreground hover:bg-destructive/90 focus:ring-2 focus:ring-destructive focus:ring-offset-2;
+  }
+
+  /* Gradient backgrounds matching your theme */
+  .bg-gradient-primary {
+    @apply bg-gradient-to-r from-sky-500 to-blue-600;
+  }
+  
+  .bg-gradient-secondary {
+    @apply bg-gradient-to-r from-sky-300 to-sky-500;
+  }
+  
+  .bg-gradient-success {
+    @apply bg-gradient-to-r from-emerald-500 to-green-600;
+  }
+  
+  .bg-gradient-warning {
+    @apply bg-gradient-to-r from-amber-500 to-orange-600;
+  }
+  
+  .bg-gradient-danger {
+    @apply bg-gradient-to-r from-red-500 to-rose-600;
+  }
+
+  /* Card styles with theme colors */
+  .card-primary {
+    @apply bg-gradient-to-br from-sky-50 to-blue-50 border-sky-200;
+  }
+  
+  .card-secondary {
+    @apply bg-gradient-to-br from-sky-25 to-sky-50 border-sky-100;
+  }
+
+  /* Text colors */
+  .text-primary-theme {
+    @apply text-sky-600;
+  }
+  
+  .text-secondary-theme {
+    @apply text-blue-600;
+  }
+
+  /* Border colors */
+  .border-primary-theme {
+    @apply border-sky-300;
+  }
+  
+  .border-secondary-theme {
+    @apply border-blue-300;
   }
 }

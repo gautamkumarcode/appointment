@@ -176,7 +176,7 @@ export default function CustomersPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-200 bg-white">
                     {displayedCustomers.map((customer) => (
-                      <tr key={customer.id} className="hover:bg-gray-50">
+                      <tr key={customer._id} className="hover:bg-gray-50">
                         <td className="whitespace-nowrap px-6 py-4">
                           <div className="flex items-center">
                             <div className="h-10 w-10 flex-shrink-0">
@@ -218,7 +218,7 @@ export default function CustomersPage() {
                         </td>
                         <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                           <button
-                            onClick={() => handleViewCustomer(customer.id)}
+                            onClick={() => handleViewCustomer(customer._id)}
                             className="flex items-center text-blue-600 hover:text-blue-900"
                           >
                             <Eye className="mr-1 h-4 w-4" />

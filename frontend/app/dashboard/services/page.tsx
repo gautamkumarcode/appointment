@@ -43,7 +43,7 @@ export default function ServicesPage() {
   const handleDeleteService = async (id: string) => {
     try {
       await serviceApi.deleteService(id);
-      setServices(services.filter((s) => s.id !== id));
+      setServices(services.filter((s) => s._id !== id));
       setDeleteConfirm(null);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to delete service');
@@ -52,7 +52,7 @@ export default function ServicesPage() {
 
   const handleFormSuccess = (service: Service) => {
     if (editingService) {
-      setServices(services.map((s) => (s.id === service.id ? service : s)));
+      setServices(services.map((s) => (s._id === service._id ? service : s)));
     } else {
       setServices([...services, service]);
     }
@@ -165,7 +165,7 @@ export default function ServicesPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-200 bg-white">
                     {services.map((service) => (
-                      <tr key={service.id} className="hover:bg-gray-50">
+                      <tr key={service._id} className="hover:bg-gray-50">
                         <td className="whitespace-nowrap px-6 py-4">
                           <div>
                             <div className="text-sm font-medium text-gray-900">{service.name}</div>
@@ -211,7 +211,7 @@ export default function ServicesPage() {
                               <Edit className="h-4 w-4" />
                             </button>
                             <button
-                              onClick={() => setDeleteConfirm(service.id)}
+                              onClick={() => setDeleteConfirm(service._id)}
                               className="text-red-600 hover:text-red-900"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -229,16 +229,15 @@ export default function ServicesPage() {
       </div>
 
       {/* Service Form Modal */}
-      {showForm && (
-        <ServiceForm
-          service={editingService}
-          onSuccess={handleFormSuccess}
-          onCancel={() => {
-            setShowForm(false);
-            setEditingService(null);
-          }}
-        />
-      )}
+      <ServiceForm
+        service={editingService}
+        open={showForm}
+        onSuccess={handleFormSuccess}
+        onCancel={() => {
+          setShowForm(false);
+          setEditingService(null);
+        }}
+      />
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (

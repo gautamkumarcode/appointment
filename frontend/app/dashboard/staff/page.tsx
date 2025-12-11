@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@/components/ui/button';
 import { Calendar, Edit, Mail, Phone, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { staffApi } from '../../../lib/staff-api';
@@ -45,7 +46,7 @@ export default function StaffPage() {
   const handleDeleteStaff = async (id: string) => {
     try {
       await staffApi.deleteStaff(id);
-      setStaff(staff.filter((s) => s.id !== id));
+      setStaff(staff.filter((s) => s._id !== id));
       setDeleteConfirm(null);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to delete staff member');
@@ -54,7 +55,7 @@ export default function StaffPage() {
 
   const handleFormSuccess = (staffMember: Staff) => {
     if (editingStaff) {
-      setStaff(staff.map((s) => (s.id === staffMember.id ? staffMember : s)));
+      setStaff(staff.map((s) => (s._id === staffMember._id ? staffMember : s)));
     } else {
       setStaff([...staff, staffMember]);
     }
@@ -63,7 +64,7 @@ export default function StaffPage() {
   };
 
   const handleScheduleUpdate = (updatedStaff: Staff) => {
-    setStaff(staff.map((s) => (s.id === updatedStaff.id ? updatedStaff : s)));
+    setStaff(staff.map((s) => (s._id === updatedStaff._id ? updatedStaff : s)));
     setShowSchedule(null);
   };
 
@@ -91,14 +92,10 @@ export default function StaffPage() {
           </p>
         </div>
         <div className="mt-4 sm:ml-16 sm:mt-0 sm:flex-none">
-          <button
-            type="button"
-            onClick={handleCreateStaff}
-            className="block rounded-md bg-blue-600 px-3 py-2 text-center text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-          >
-            <Plus className="mr-2 inline-block h-4 w-4" />
+          <Button type="button" onClick={handleCreateStaff} variant="gradient">
+            <Plus className="mr-2 h-4 w-4" />
             Add Staff Member
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -128,14 +125,10 @@ export default function StaffPage() {
                   Get started by adding your first team member.
                 </p>
                 <div className="mt-6">
-                  <button
-                    type="button"
-                    onClick={handleCreateStaff}
-                    className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-                  >
+                  <Button type="button" onClick={handleCreateStaff} variant="gradient">
                     <Plus className="mr-2 h-4 w-4" />
                     Add Staff Member
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -159,7 +152,7 @@ export default function StaffPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-200 bg-white">
                     {staff.map((staffMember) => (
-                      <tr key={staffMember.id} className="hover:bg-gray-50">
+                      <tr key={staffMember._id} className="hover:bg-gray-50">
                         <td className="whitespace-nowrap px-6 py-4">
                           <div className="flex items-center">
                             <div className="h-10 w-10 flex-shrink-0">
@@ -214,7 +207,7 @@ export default function StaffPage() {
                               <Edit className="h-4 w-4" />
                             </button>
                             <button
-                              onClick={() => setDeleteConfirm(staffMember.id)}
+                              onClick={() => setDeleteConfirm(staffMember._id)}
                               className="text-red-600 hover:text-red-900"
                               title="Delete Staff Member"
                             >
@@ -265,18 +258,12 @@ export default function StaffPage() {
                 </p>
               </div>
               <div className="flex justify-center space-x-4 px-4 py-3">
-                <button
-                  onClick={() => setDeleteConfirm(null)}
-                  className="rounded-md bg-gray-300 px-4 py-2 text-base font-medium text-gray-800 shadow-sm hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300"
-                >
+                <Button onClick={() => setDeleteConfirm(null)} variant="outline">
                   Cancel
-                </button>
-                <button
-                  onClick={() => handleDeleteStaff(deleteConfirm)}
-                  className="rounded-md bg-red-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-                >
+                </Button>
+                <Button onClick={() => handleDeleteStaff(deleteConfirm)} variant="destructive">
                   Delete
-                </button>
+                </Button>
               </div>
             </div>
           </div>

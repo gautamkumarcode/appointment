@@ -2,6 +2,7 @@
 
 import { MessageCircle, Minimize2, Send, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import { Textarea } from './ui/textarea';
 
 interface Message {
   id: string;
@@ -241,12 +242,12 @@ export default function ChatWidget({
             {/* Input */}
             <div className="rounded-b-lg border-t bg-white p-3">
               <div className="flex space-x-2">
-                <textarea
+                <Textarea
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder={placeholder}
-                  className="flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 resize-none"
                   style={{ color: theme.textColor }}
                   rows={1}
                   disabled={isLoading}

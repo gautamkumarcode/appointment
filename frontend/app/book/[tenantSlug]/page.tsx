@@ -19,6 +19,8 @@ export default function ServiceSelectionPage() {
     useBookingStore();
 
   const [availableStaff, setAvailableStaff] = useState<Staff[]>([]);
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [staffError, setStaffError] = useState<string | null>(null);
 
   // Set tenant slug when component mounts
   useEffect(() => {
@@ -47,28 +49,23 @@ export default function ServiceSelectionPage() {
 
   const isLoading = tenantLoading || servicesLoading;
 
-  const handleServiceSelect = (service: Service) => {
+  const handleServiceSelect = async (service: Service) => {
     setSelectedService(service);
 
-    // If service requires staff selection, we'll need to show staff options
-    // For now, we'll simulate staff data since the API endpoint isn't implemented yet
+    // If service requires staff selection, fetch staff from API
     if (service.requireStaff) {
-      // TODO: Fetch actual staff from API when available
-      const mockStaff: Staff[] = [
-        {
-          _id: '1',
-          name: 'Dr. Smith',
-          email: 'smith@example.com',
-          weeklySchedule: {},
-        },
-        {
-          _id: '2',
-          name: 'Dr. Johnson',
-          email: 'johnson@example.com',
-          weeklySchedule: {},
-        },
-      ];
-      setAvailableStaff(mockStaff);
+      setStaffLoading(true);
+      setStaffError(null);
+      try {
+        const staff = await bookingApi.getStaff(tenantSlug);
+        setAvailableStaff(staff);
+      } catch (error) {
+        console.error('Failed to fetch staff:', error);
+        setStaffError('Failed to load staff members. Please try again.');
+        setAvailableStaff([]);
+      } finally {
+        setStaffLoading(false);
+      }
     } else {
       // If no staff selection required, proceed to time slot selection
       router.push(`/book/${tenantSlug}/slots`);
@@ -146,7 +143,7 @@ export default function ServiceSelectionPage() {
   }
 
   // Show staff selection if service is selected and requires staff
-  if (selectedService && selectedService.requireStaff && availableStaff.length > 0) {
+  if (selectedService && selectedService.requireStaff) {
     return (
       <BookingLayout
         title="Select Staff Member"
@@ -157,63 +154,103 @@ export default function ServiceSelectionPage() {
       >
         <div className="space-y-4">
           <button
-            onClick={() => setSelectedService(null)}
+            onClick={() => {
+              setSelectedService(null);
+              setAvailableStaff([]);
+              setStaffError(null);
+            }}
             className="text-sm font-medium text-blue-600 hover:text-blue-800"
           >
             ← Back to services
           </button>
 
-          <div className="grid gap-4">
-            {availableStaff.map((staff) => (
+          {staffLoading && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2
+                className="h-6 w-6 animate-spin"
+                style={{ color: tenantInfo?.primaryColor || '#2563eb' }}
+              />
+              <span className="ml-2 text-gray-600">Loading staff members...</span>
+            </div>
+          )}
+
+          {staffError && (
+            <div className="rounded-md bg-red-50 p-4">
+              <p className="text-sm text-red-600">{staffError}</p>
               <button
-                key={staff._id}
-                onClick={() => handleStaffSelect(staff)}
-                className={cn(
-                  'rounded-lg border p-4 text-left transition-colors',
-                  selectedStaff?._id === staff._id ? '' : 'border-gray-200 hover:border-gray-300'
-                )}
-                style={{
-                  ...(selectedStaff?._id === staff._id && {
-                    borderColor: tenantInfo?.primaryColor || '#2563eb',
-                    backgroundColor: `${tenantInfo?.primaryColor || '#2563eb'}1a`, // 10% opacity
-                  }),
-                }}
-                onMouseEnter={(e) => {
-                  if (selectedStaff?._id !== staff._id) {
-                    e.currentTarget.style.borderColor = `${tenantInfo?.primaryColor || '#2563eb'}80`;
-                    e.currentTarget.style.backgroundColor = `${tenantInfo?.primaryColor || '#2563eb'}0d`;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (selectedStaff?._id !== staff._id) {
-                    e.currentTarget.style.borderColor = '#d1d5db';
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }
-                }}
+                onClick={() => handleServiceSelect(selectedService)}
+                className="mt-2 text-sm font-medium text-red-600 hover:text-red-800"
               >
-                <div className="flex items-center space-x-3">
-                  <div className="flex-shrink-0">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-300">
-                      <Users className="h-5 w-5 text-gray-600" />
+                Try again
+              </button>
+            </div>
+          )}
+
+          {!staffLoading && !staffError && availableStaff.length === 0 && (
+            <div className="py-8 text-center">
+              <p className="mb-2 text-gray-600">
+                No staff members are currently available for this service.
+              </p>
+              <p className="text-sm text-gray-500">
+                You can still continue with your booking and we'll assign an available staff member.
+              </p>
+            </div>
+          )}
+
+          {!staffLoading && !staffError && availableStaff.length > 0 && (
+            <div className="grid gap-4">
+              {availableStaff.map((staff) => (
+                <button
+                  key={staff._id}
+                  onClick={() => handleStaffSelect(staff)}
+                  className={cn(
+                    'rounded-lg border p-4 text-left transition-colors',
+                    selectedStaff?._id === staff._id ? '' : 'border-gray-200 hover:border-gray-300'
+                  )}
+                  style={{
+                    ...(selectedStaff?._id === staff._id && {
+                      borderColor: tenantInfo?.primaryColor || '#2563eb',
+                      backgroundColor: `${tenantInfo?.primaryColor || '#2563eb'}1a`, // 10% opacity
+                    }),
+                  }}
+                  onMouseEnter={(e) => {
+                    if (selectedStaff?._id !== staff._id) {
+                      e.currentTarget.style.borderColor = `${tenantInfo?.primaryColor || '#2563eb'}80`;
+                      e.currentTarget.style.backgroundColor = `${tenantInfo?.primaryColor || '#2563eb'}0d`;
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (selectedStaff?._id !== staff._id) {
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }
+                  }}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="flex-shrink-0">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-300">
+                        <Users className="h-5 w-5 text-gray-600" />
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900">{staff.name}</h3>
                     </div>
                   </div>
-                  <div>
-                    <h3 className="font-medium text-gray-900">{staff.name}</h3>
-                    {staff.email && <p className="text-sm text-gray-500">{staff.email}</p>}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
+                </button>
+              ))}
+            </div>
+          )}
 
-          <div className="border-t pt-4">
-            <button
-              onClick={handleContinueWithoutStaff}
-              className="w-full rounded-md border border-gray-300 px-4 py-2 text-gray-600 hover:bg-gray-50"
-            >
-              No preference (any available staff)
-            </button>
-          </div>
+          {!staffLoading && (
+            <div className="border-t pt-4">
+              <button
+                onClick={handleContinueWithoutStaff}
+                className="w-full rounded-md border border-gray-300 px-4 py-2 text-gray-600 hover:bg-gray-50"
+              >
+                No preference (any available staff)
+              </button>
+            </div>
+          )}
         </div>
       </BookingLayout>
     );

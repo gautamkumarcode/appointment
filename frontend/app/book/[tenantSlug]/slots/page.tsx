@@ -7,6 +7,7 @@ import { Calendar, ChevronLeft, Clock, Loader2 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { BookingLayout } from '../../../../components/BookingLayout';
+import { Button } from '../../../../components/ui/button';
 import { bookingApi, TimeSlot } from '../../../../lib/booking-api';
 import { useBookingStore } from '../../../../lib/booking-store';
 import { cn } from '../../../../lib/utils';
@@ -194,65 +195,87 @@ export default function TimeSlotsPage() {
           ) : error ? (
             <div className="py-8 text-center">
               <p className="mb-4 text-red-600">Failed to load available times. Please try again.</p>
-              <button
-                onClick={() => refetch()}
-                className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-              >
+              <Button onClick={() => refetch()} variant="gradient">
                 Retry
-              </button>
+              </Button>
             </div>
           ) : !timeSlots || timeSlots.length === 0 ? (
             <div className="py-8 text-center">
-              <p className="mb-2 text-gray-600">No available times for this date.</p>
+              <p className="mb-2 text-gray-600">No time slots for this date.</p>
               <p className="text-sm text-gray-500">
                 Please select a different date or try again later.
               </p>
             </div>
+          ) : timeSlots.filter((slot) => slot.available).length === 0 ? (
+            <div className="py-8 text-center">
+              <p className="mb-2 text-gray-600">All time slots are booked for this date.</p>
+              <p className="text-sm text-gray-500">
+                Please select a different date to see available times.
+              </p>
+              <div className="mt-4">
+                <p className="text-sm text-gray-400">Booked slots are shown below:</p>
+              </div>
+            </div>
           ) : (
             <div>
-              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
-                {timeSlots
-                  .filter((slot) => slot.available)
-                  .map((slot) => {
-                    const startTime = new Date(slot.startTime);
-                    const displayTime = formatInTimeZone(startTime, customerTimezone, 'h:mm a');
-                    const isSelected = selectedSlot?.startTime === slot.startTime;
+              {/* Legend */}
+              <div className="mb-4 flex items-center justify-center space-x-6 text-sm">
+                <div className="flex items-center space-x-2">
+                  <div className="h-3 w-3 rounded border border-gray-200 bg-white"></div>
+                  <span className="text-gray-600">Available</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="h-3 w-3 rounded border border-gray-200 bg-gray-100"></div>
+                  <span className="text-gray-600">Booked</span>
+                </div>
+              </div>
 
-                    return (
-                      <button
-                        key={slot.startTime}
-                        onClick={() => handleSlotSelect(slot)}
-                        className={cn(
-                          'rounded-lg border p-3 text-center transition-colors',
-                          isSelected
+              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
+                {timeSlots.map((slot) => {
+                  const startTime = new Date(slot.startTime);
+                  const displayTime = formatInTimeZone(startTime, customerTimezone, 'h:mm a');
+                  const isSelected = selectedSlot?.startTime === slot.startTime;
+                  const isAvailable = slot.available;
+
+                  return (
+                    <button
+                      key={slot.startTime}
+                      onClick={() => isAvailable && handleSlotSelect(slot)}
+                      disabled={!isAvailable}
+                      className={cn(
+                        'rounded-lg border p-3 text-center transition-colors',
+                        !isAvailable
+                          ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                          : isSelected
                             ? 'text-white'
                             : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                        )}
-                        style={
-                          isSelected
-                            ? {
-                                borderColor: tenantInfo?.primaryColor || '#2563eb',
-                                backgroundColor: tenantInfo?.primaryColor || '#2563eb',
-                              }
-                            : {}
+                      )}
+                      style={
+                        isAvailable && isSelected
+                          ? {
+                              borderColor: tenantInfo?.primaryColor || '#2563eb',
+                              backgroundColor: tenantInfo?.primaryColor || '#2563eb',
+                            }
+                          : {}
+                      }
+                      onMouseEnter={(e) => {
+                        if (isAvailable && !isSelected) {
+                          e.currentTarget.style.borderColor = `${tenantInfo?.primaryColor || '#2563eb'}80`;
+                          e.currentTarget.style.backgroundColor = `${tenantInfo?.primaryColor || '#2563eb'}1a`;
                         }
-                        onMouseEnter={(e) => {
-                          if (!isSelected) {
-                            e.currentTarget.style.borderColor = `${tenantInfo?.primaryColor || '#2563eb'}80`;
-                            e.currentTarget.style.backgroundColor = `${tenantInfo?.primaryColor || '#2563eb'}1a`;
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isSelected) {
-                            e.currentTarget.style.borderColor = '#d1d5db';
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                          }
-                        }}
-                      >
-                        {displayTime}
-                      </button>
-                    );
-                  })}
+                      }}
+                      onMouseLeave={(e) => {
+                        if (isAvailable && !isSelected) {
+                          e.currentTarget.style.borderColor = '#d1d5db';
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }
+                      }}
+                    >
+                      <div>{displayTime}</div>
+                      {!isAvailable && <div className="mt-1 text-xs text-gray-500">Booked</div>}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

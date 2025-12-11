@@ -4,6 +4,7 @@ import {
   createPublicBooking,
   getPublicAppointment,
   getPublicServices,
+  getPublicStaff,
   getTenantInfo,
   resolveTenantBySlug,
 } from '../controllers/publicBookingController';
@@ -20,6 +21,9 @@ router.get('/:tenantSlug/info', getTenantInfo);
 
 // GET /api/public/:tenantSlug/services - List tenant services
 router.get('/:tenantSlug/services', getPublicServices);
+
+// GET /api/public/:tenantSlug/staff - List tenant staff
+router.get('/:tenantSlug/staff', getPublicStaff);
 
 // GET /api/public/:tenantSlug/availability - Get available slots
 router.get('/:tenantSlug/availability', getPublicAvailableSlots);

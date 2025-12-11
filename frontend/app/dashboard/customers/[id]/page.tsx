@@ -244,7 +244,7 @@ export default function CustomerProfilePage({ params }: CustomerProfilePageProps
               {appointments
                 .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
                 .map((appointment) => (
-                  <div key={appointment.id} className="rounded-lg border border-gray-200 p-4">
+                  <div key={appointment._id} className="rounded-lg border border-gray-200 p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="mb-2 flex items-center space-x-3">

@@ -3,6 +3,7 @@
 import { Bell, ChevronDown, Menu, Search } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '../lib/auth-store';
+import { Input } from './ui/input';
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -51,12 +52,12 @@ export default function Navbar({ onMenuClick, onLogout }: NavbarProps) {
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                   <Search className="h-5 w-5 text-gray-400" />
                 </div>
-                <input
+                <Input
                   id="search"
                   name="search"
-                  className="block w-full rounded-md border border-gray-300 bg-white py-2 pl-10 pr-3 leading-5 placeholder-gray-500 focus:border-sky-500 focus:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-sky-500 sm:text-sm"
-                  placeholder="Search appointments, customers..."
                   type="search"
+                  placeholder="Search appointments, customers..."
+                  className="pl-10"
                 />
               </div>
             </div>

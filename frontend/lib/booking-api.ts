@@ -1,4 +1,4 @@
-import { PopulatedAppointment, Service } from '../types';
+import { PopulatedAppointment, Service, Staff } from '../types';
 import { apiClient } from './api';
 
 export interface TimeSlot {
@@ -62,6 +62,12 @@ export const bookingApi = {
   // Get services for a tenant
   getServices: async (tenantSlug: string): Promise<Service[]> => {
     const response = await apiClient.get(`/public/${tenantSlug}/services`);
+    return response.data.data;
+  },
+
+  // Get staff for a tenant
+  getStaff: async (tenantSlug: string): Promise<Staff[]> => {
+    const response = await apiClient.get(`/public/${tenantSlug}/staff`);
     return response.data.data;
   },
 
