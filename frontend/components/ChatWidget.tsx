@@ -74,15 +74,17 @@ export default function ChatWidget({
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${apiUrl}/ai/chat`, {
+      const response = await fetch(`${apiUrl}/ai/public/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Tenant-ID': _tenantId,
         },
         body: JSON.stringify({
           message: userMessage.content,
           conversationId,
           channel: 'web',
+          externalId: `web-session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       });

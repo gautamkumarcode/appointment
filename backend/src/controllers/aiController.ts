@@ -59,7 +59,7 @@ export const handleChatMessage = async (req: Request, res: Response) => {
     // Process message and get AI response
     const context = {
       tenantId,
-      customerId,
+      customerId: cleanCustomerId,
       conversationHistory,
       channel,
     };
@@ -355,7 +355,7 @@ export const handlePublicChatMessage = async (req: Request, res: Response) => {
     // Process message and get AI response
     const context = {
       tenantId,
-      customerId,
+      customerId: cleanCustomerId,
       conversationHistory,
       channel,
     };

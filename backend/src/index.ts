@@ -75,7 +75,7 @@ app.use(
 );
 
 // Session debugging middleware
-app.use((req, res, next) => {
+app.use((req, _res, next) => {
   if (req.path.includes('/auth/') || req.path.includes('/api/')) {
     console.log('🔍 Session Debug:', {
       sessionID: req.sessionID,

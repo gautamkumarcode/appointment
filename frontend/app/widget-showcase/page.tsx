@@ -22,11 +22,12 @@ type DemoConfigs = {
 
 export default function WidgetShowcasePage() {
   const [selectedDemo, setSelectedDemo] = useState<keyof DemoConfigs>('healthcare');
+  const [realTenantId, setRealTenantId] = useState<string>('');
 
   const demoConfigs: DemoConfigs = {
     healthcare: {
       name: 'Healthcare Clinic',
-      tenantId: 'demo-healthcare',
+      tenantId: realTenantId || 'demo-healthcare',
       theme: { primaryColor: '#10b981', textColor: '#333333' },
       welcomeMessage:
         "Hi! I'm here to help you schedule your medical appointment. What type of service do you need?",
@@ -40,7 +41,7 @@ export default function WidgetShowcasePage() {
     },
     restaurant: {
       name: 'Fine Dining Restaurant',
-      tenantId: 'demo-restaurant',
+      tenantId: realTenantId || 'demo-restaurant',
       theme: { primaryColor: '#f59e0b', textColor: '#333333' },
       welcomeMessage:
         'Welcome to our restaurant! I can help you make a reservation, check our menu, or answer any questions.',
@@ -49,7 +50,7 @@ export default function WidgetShowcasePage() {
     },
     salon: {
       name: 'Beauty Salon & Spa',
-      tenantId: 'demo-salon',
+      tenantId: realTenantId || 'demo-salon',
       theme: { primaryColor: '#ec4899', textColor: '#333333' },
       welcomeMessage:
         'Hi beautiful! Ready to book your next appointment? I can help you find the perfect service and time slot.',
@@ -58,7 +59,7 @@ export default function WidgetShowcasePage() {
     },
     fitness: {
       name: 'Fitness Studio',
-      tenantId: 'demo-fitness',
+      tenantId: realTenantId || 'demo-fitness',
       theme: { primaryColor: '#ef4444', textColor: '#333333' },
       welcomeMessage:
         'Ready to crush your fitness goals? Let me help you book a class or personal training session!',
@@ -72,7 +73,7 @@ export default function WidgetShowcasePage() {
     },
     consulting: {
       name: 'Business Consulting',
-      tenantId: 'demo-consulting',
+      tenantId: realTenantId || 'demo-consulting',
       theme: { primaryColor: '#3b82f6', textColor: '#333333' },
       welcomeMessage:
         "Hello! I'm here to help you schedule a consultation. What business challenges can we help you solve?",
@@ -120,6 +121,23 @@ export default function WidgetShowcasePage() {
             See how our AI chat widget adapts to different industries and use cases. Try the demos
             below and get inspired for your own implementation.
           </p>
+
+          {/* Tenant ID Input for Testing */}
+          <div className="mx-auto mt-8 max-w-md">
+            <label className="mb-2 block text-sm font-medium text-gray-700">
+              Use Your Tenant ID (for testing with real data):
+            </label>
+            <input
+              type="text"
+              value={realTenantId}
+              onChange={(e) => setRealTenantId(e.target.value)}
+              placeholder="Enter your tenant ID..."
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Leave empty to use demo mode (limited functionality)
+            </p>
+          </div>
         </div>
 
         {/* Features Grid */}
@@ -239,12 +257,30 @@ export default function WidgetShowcasePage() {
 
                 <div className="flex space-x-3">
                   <a
-                    href={`/widget?tenantId=${currentDemo.tenantId}&primaryColor=${encodeURIComponent(currentDemo.theme.primaryColor)}&welcomeMessage=${encodeURIComponent(currentDemo.welcomeMessage)}`}
-                    target="_blank"
-                    className="flex items-center space-x-2 rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
+                    href={
+                      realTenantId
+                        ? `/widget?websiteUrl=https://demo.example.com&tenantId=${currentDemo.tenantId}&primaryColor=${encodeURIComponent(currentDemo.theme.primaryColor)}&welcomeMessage=${encodeURIComponent(currentDemo.welcomeMessage)}`
+                        : '#'
+                    }
+                    target={realTenantId ? '_blank' : '_self'}
+                    onClick={
+                      !realTenantId
+                        ? (e) => {
+                            e.preventDefault();
+                            alert(
+                              'Please enter your tenant ID above to test with real data, or use the Widget Generator to create a working widget.'
+                            );
+                          }
+                        : undefined
+                    }
+                    className={`flex items-center space-x-2 rounded-lg px-4 py-2 text-white transition-colors ${
+                      realTenantId
+                        ? 'bg-blue-600 hover:bg-blue-700'
+                        : 'cursor-not-allowed bg-gray-400'
+                    }`}
                   >
                     <Eye className="h-4 w-4" />
-                    <span>Live Demo</span>
+                    <span>{realTenantId ? 'Live Demo' : 'Demo (Need Tenant ID)'}</span>
                   </a>
 
                   <Link

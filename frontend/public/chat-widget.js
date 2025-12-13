@@ -45,6 +45,7 @@
 
   // Get tenant configuration from backend based on website URL
   let tenantConfig = null;
+  let sessionId = `web-session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
   // Fetch tenant configuration
   async function fetchTenantConfig() {

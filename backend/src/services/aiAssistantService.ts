@@ -234,7 +234,16 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
         };
       }
 
-      if (intent === 'booking' || this.isInBookingFlow(context.conversationHistory)) {
+      const isBookingFlow = this.isInBookingFlow(context.conversationHistory);
+      logger.info('Intent routing check:', { 
+        intent, 
+        isBookingFlow, 
+        message: message.substring(0, 100),
+        recentMessages: context.conversationHistory.slice(-3).map(m => ({ role: m.role, content: m.content.substring(0, 50) }))
+      });
+
+      if (intent === 'booking' || isBookingFlow) {
+        logger.info('Routing to booking flow', { intent, isBookingFlow, message: message.substring(0, 50) });
         const response = await this.handleBookingFlow(
           context.tenantId,
           message,
@@ -949,11 +958,34 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
   private extractIntent(message: string): string {
     const lowerMessage = message.toLowerCase();
 
+    // Check for booking-related intents first
     if (
       lowerMessage.includes('book') ||
       lowerMessage.includes('appointment') ||
       lowerMessage.includes('schedule')
     ) {
+      return 'booking';
+    }
+
+    // Check if message contains email - likely booking info
+    const emailPattern = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/;
+    if (emailPattern.test(message)) {
+      return 'booking';
+    }
+
+    // Check if message contains explicit name patterns - likely booking info
+    const namePatterns = [
+      /(?:my name is|i'm|i am|call me)\s+[a-zA-Z\s]+/i,
+      // Only treat as name if it's a simple 2-3 word name without common greeting words
+      /^[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2}\s*$/  // Proper name format like "John Smith" or "Mary Jane Doe"
+    ];
+    
+    // Don't treat common greetings as names
+    const isGreeting = lowerMessage.includes('hello') || lowerMessage.includes('hi') || 
+                      lowerMessage.includes('hey') || lowerMessage.includes('good') ||
+                      lowerMessage.includes('there') || lowerMessage.includes('how');
+    
+    if (!isGreeting && namePatterns.some(pattern => pattern.test(message))) {
       return 'booking';
     }
 
@@ -1019,11 +1051,25 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
       nameMatch = message.match(pattern);
       if (nameMatch && nameMatch[1]) {
         const extractedName = nameMatch[1].trim();
-        // Validate it's a reasonable name (2-50 chars, only letters and spaces)
+        const lowerName = extractedName.toLowerCase();
+        
+        // Exclude obvious non-names
+        const excludeWords = [
+          'book', 'appointment', 'schedule', 'reserve', 'hello', 'hi', 'hey', 
+          'good', 'morning', 'afternoon', 'evening', 'thanks', 'thank', 'you',
+          'please', 'help', 'me', 'for', 'with', 'want', 'need', 'like', 'would',
+          'first', 'second', 'third', 'one', 'two', 'three', 'service', 'ine', 'an'
+        ];
+        
+        const containsExcludeWords = excludeWords.some(word => lowerName.includes(word));
+        
+        // Validate it's a reasonable name (2-50 chars, only letters and spaces, no exclude words)
         if (
           extractedName.length >= 2 &&
           extractedName.length <= 50 &&
-          /^[a-zA-Z\s]+$/.test(extractedName)
+          /^[a-zA-Z\s]+$/.test(extractedName) &&
+          !containsExcludeWords &&
+          extractedName.split(' ').length <= 3 // Max 3 words for a name
         ) {
           break;
         } else {
@@ -1244,7 +1290,9 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
         serviceName,
         preferredDate,
         preferredTime,
-        combinedInfo
+        combinedInfo,
+        validationMissing: validation.missing,
+        validationIsValid: validation.isValid
       });
 
       // If this is the initial booking request
@@ -1259,6 +1307,7 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
 
       // If we're missing customer information
       if (!validation.isValid) {
+        logger.info('Booking flow - Missing customer info:', { missing: validation.missing, combinedInfo });
         return this.requestMissingInfo(validation.missing, combinedInfo);
       }
 
@@ -1309,13 +1358,28 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
 
         const endTime = new Date(startTime.getTime() + selectedService.durationMinutes * 60 * 1000);
 
-        // Check if the slot is available
-        const isAvailable = await this.checkSlotAvailability(
-          tenantId,
-          serviceId,
-          startTime,
-          endTime
+        // Check if user is selecting from previously suggested alternatives
+        const recentAssistantMessages = conversationHistory
+          .filter(msg => msg.role === 'assistant')
+          .slice(-2); // Check last 2 assistant messages
+        
+        const wasShowingAlternatives = recentAssistantMessages.some(msg => 
+          msg.content.includes('alternatives for the same day') ||
+          msg.content.includes('Would any of these work for you')
         );
+        
+        // If user is selecting from suggested alternatives, trust their selection
+        let isAvailable = true;
+        if (!wasShowingAlternatives) {
+          // Only check availability if this is a new time request, not a selection from alternatives
+          isAvailable = await this.checkSlotAvailability(
+            tenantId,
+            serviceId,
+            startTime,
+            endTime
+          );
+        }
+        
         if (!isAvailable) {
           return await this.suggestAlternativeSlots(tenantId, serviceId, startTime);
         }
@@ -1380,18 +1444,40 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
         if (!state.serviceId && !state.serviceName) {
           const lowerContent = message.content.toLowerCase();
           
-          // Check for number selection (1, 2, 3, etc.)
-          const numberMatch = message.content.match(/(\d+)/);
-          if (numberMatch) {
-            state.serviceName = `service_${numberMatch[1]}`;
-          }
+          // Don't extract service numbers from time expressions
+          const isTimeExpression = /\d+\s*(am|pm|:\d+)/i.test(message.content) ||
+                                  lowerContent.includes('o\'clock') ||
+                                  lowerContent.includes('morning') ||
+                                  lowerContent.includes('afternoon') ||
+                                  lowerContent.includes('evening');
           
-          // Check for ordinal selection (first, second, etc.)
-          const ordinalWords = ['first', 'second', 'third', 'fourth', 'fifth'];
-          for (let i = 0; i < ordinalWords.length; i++) {
-            if (lowerContent.includes(ordinalWords[i])) {
-              state.serviceName = `service_${i + 1}`;
-              break;
+          // Don't extract service numbers from date expressions
+          const isDateExpression = lowerContent.includes('tomorrow') ||
+                                  lowerContent.includes('today') ||
+                                  lowerContent.includes('monday') ||
+                                  lowerContent.includes('tuesday') ||
+                                  lowerContent.includes('wednesday') ||
+                                  lowerContent.includes('thursday') ||
+                                  lowerContent.includes('friday') ||
+                                  lowerContent.includes('saturday') ||
+                                  lowerContent.includes('sunday') ||
+                                  /\d+\/\d+/.test(message.content) ||
+                                  /\d+-\d+-\d+/.test(message.content);
+          
+          if (!isTimeExpression && !isDateExpression) {
+            // Check for number selection (1, 2, 3, etc.) - only if it's not a time/date
+            const numberMatch = message.content.match(/^(\d+)$/); // Only standalone numbers
+            if (numberMatch) {
+              state.serviceName = `service_${numberMatch[1]}`;
+            } else {
+              // Check for ordinal selection (first, second, etc.)
+              const ordinalWords = ['first', 'second', 'third', 'fourth', 'fifth'];
+              for (let i = 0; i < ordinalWords.length; i++) {
+                if (lowerContent.includes(ordinalWords[i])) {
+                  state.serviceName = `service_${i + 1}`;
+                  break;
+                }
+              }
             }
           }
         }
@@ -1418,28 +1504,100 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
           /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b|\b\(\d{3}\)\s?\d{3}[-.]?\d{4}\b/
         );
 
-        // Enhanced name extraction patterns
+        // Only extract names when explicitly provided with clear indicators
         const namePatterns = [
           /(?:my name is|i'm|i am|call me)\s+([a-zA-Z\s]+?)(?:\s+and|\s*,|\s*\.|\s*$)/i,
           /(?:name:?\s*)([a-zA-Z\s]+?)(?:\s+email|\s*,|\s*\.|\s*$)/i,
-          /^([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s*$/, // Just a name by itself
           /^([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s+[a-zA-Z0-9._%+-]+@/, // Name followed by email
         ];
 
+        // Check if any recent assistant message was asking for a name
+        const recentAssistantMessages = history.filter((msg) => msg.role === 'assistant').slice(-3); // Check last 3 assistant messages
+
+        const wasAskingForName = recentAssistantMessages.some(
+          (msg) =>
+            msg.content.toLowerCase().includes('name') ||
+            msg.content.toLowerCase().includes('what should i call you') ||
+            msg.content.toLowerCase().includes("what's your name")
+        );
+
         let nameMatch = null;
-        for (const pattern of namePatterns) {
-          nameMatch = message.content.match(pattern);
-          if (nameMatch && nameMatch[1]) {
-            const extractedName = nameMatch[1].trim();
-            // Validate it's a reasonable name (2-50 chars, only letters and spaces)
+
+        // Only extract names if we were asking for a name, or if it's explicitly stated
+        if (wasAskingForName) {
+          // If we were asking for name, treat simple responses as names
+          const simpleNamePattern = /^([a-zA-Z]+(?:\s+[a-zA-Z]+){0,2})\s*$/;
+          const simpleMatch = message.content.match(simpleNamePattern);
+
+          if (simpleMatch && simpleMatch[1]) {
+            const extractedName = simpleMatch[1].trim();
+            const lowerName = extractedName.toLowerCase();
+
+            // Exclude obvious non-names
+            const excludeWords = [
+              'book',
+              'appointment',
+              'schedule',
+              'reserve',
+              'hello',
+              'hi',
+              'hey',
+              'good',
+              'morning',
+              'afternoon',
+              'evening',
+              'thanks',
+              'thank',
+              'you',
+              'please',
+              'help',
+              'me',
+              'for',
+              'with',
+              'want',
+              'need',
+              'like',
+              'would',
+              'first',
+              'second',
+              'third',
+              'one',
+              'two',
+              'three',
+              'service',
+              'ine',
+            ];
+
+            const containsExcludeWords = excludeWords.some((word) => lowerName.includes(word));
+
             if (
               extractedName.length >= 2 &&
               extractedName.length <= 50 &&
-              /^[a-zA-Z\s]+$/.test(extractedName)
+              /^[a-zA-Z\s]+$/.test(extractedName) &&
+              !containsExcludeWords &&
+              extractedName.split(' ').length <= 3 // Max 3 words for a name
             ) {
-              break;
-            } else {
-              nameMatch = null;
+              nameMatch = { 1: extractedName };
+            }
+          }
+        } else {
+          // Only extract names with explicit indicators
+          for (const pattern of namePatterns) {
+            nameMatch = message.content.match(pattern);
+            if (nameMatch && nameMatch[1]) {
+              const extractedName = nameMatch[1].trim();
+
+              // Validate it's a reasonable name
+              if (
+                extractedName.length >= 2 &&
+                extractedName.length <= 50 &&
+                /^[a-zA-Z\s]+$/.test(extractedName) &&
+                extractedName.split(' ').length <= 3
+              ) {
+                break;
+              } else {
+                nameMatch = null;
+              }
             }
           }
         }
@@ -1459,7 +1617,7 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
   private extractCustomerInfoFromMessage(message: string): Partial<{ name: string; email: string; phone: string }> {
     const info: Partial<{ name: string; email: string; phone: string }> = {};
 
-    // Extract email
+    // Extract email first (highest priority)
     const emailMatch = message.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
     if (emailMatch) info.email = emailMatch[0];
 
@@ -1467,22 +1625,30 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
     const phoneMatch = message.match(/\b\d{3}[-.]?\d{3}[-.]?\d{4}\b|\b\(\d{3}\)\s?\d{3}[-.]?\d{4}\b/);
     if (phoneMatch) info.phone = phoneMatch[0];
 
-    // Extract name with enhanced patterns
-    const namePatterns = [
-      /(?:my name is|i'm|i am|call me)\s+([a-zA-Z\s]+?)(?:\s+and|\s*,|\s*\.|\s*$)/i,
-      /(?:name:?\s*)([a-zA-Z\s]+?)(?:\s+email|\s*,|\s*\.|\s*$)/i,
-      /^([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s*$/, // Just a name by itself
-      /^([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s+[a-zA-Z0-9._%+-]+@/, // Name followed by email
-    ];
+    // Only extract name if the message doesn't contain an email (to avoid confusion)
+    // and only with explicit name indicators - don't guess from random text
+    if (!emailMatch) {
+      const namePatterns = [
+        /(?:my name is|i'm|i am|call me)\s+([a-zA-Z\s]+?)(?:\s+and|\s*,|\s*\.|\s*$)/i,
+        /(?:name:?\s*)([a-zA-Z\s]+?)(?:\s+email|\s*,|\s*\.|\s*$)/i,
+        // Removed the generic pattern that was causing issues
+      ];
 
-    for (const pattern of namePatterns) {
-      const nameMatch = message.match(pattern);
-      if (nameMatch && nameMatch[1]) {
-        const extractedName = nameMatch[1].trim();
-        // Validate it's a reasonable name (2-50 chars, only letters and spaces)
-        if (extractedName.length >= 2 && extractedName.length <= 50 && /^[a-zA-Z\s]+$/.test(extractedName)) {
-          info.name = extractedName;
-          break;
+      for (const pattern of namePatterns) {
+        const nameMatch = message.match(pattern);
+        if (nameMatch && nameMatch[1]) {
+          const extractedName = nameMatch[1].trim();
+          
+          // Validate it's a reasonable name
+          if (
+            extractedName.length >= 2 &&
+            extractedName.length <= 50 &&
+            /^[a-zA-Z\s]+$/.test(extractedName) &&
+            extractedName.split(' ').length <= 3
+          ) {
+            info.name = extractedName;
+            break;
+          }
         }
       }
     }
@@ -1494,32 +1660,101 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
    * Check if conversation is in booking flow
    */
   private isInBookingFlow(history: IAIMessage[]): boolean {
+    logger.info('Checking booking flow context', {
+      historyLength: history.length,
+      recentMessages: history
+        .slice(-5)
+        .map((m) => ({ role: m.role, content: m.content.substring(0, 100) })),
+    });
+
     // Look at the last few assistant messages to see if we're asking for booking info
     const recentAssistantMessages = history
-      .filter(msg => msg.role === 'assistant')
-      .slice(-3) // Check last 3 assistant messages
-      .map(msg => msg.content.toLowerCase());
+      .filter((msg) => msg.role === 'assistant')
+      .slice(-5) // Check last 5 assistant messages (increased from 3)
+      .map((msg) => msg.content.toLowerCase());
 
     const bookingKeywords = [
       'book an appointment',
       'your name',
       'your email',
+      'email address', // Added this key phrase
       'which service',
       'preferred date',
       'preferred time',
       'schedule your appointment',
-      'complete your booking'
+      'complete your booking',
+      "what's your name",
+      "what's your email",
+      'what is your name',
+      'what is your email',
+      'to complete your booking',
+      'need your name',
+      'need your email',
+      'would you like to book',
+      'book your appointment',
+      'help you book',
+      'booking information',
+      'appointment booking',
+      'contact information',
+      'get started',
     ];
 
-    return recentAssistantMessages.some(content => 
-      bookingKeywords.some(keyword => content.includes(keyword))
+    const hasBookingKeywords = recentAssistantMessages.some((content) =>
+      bookingKeywords.some((keyword) => content.includes(keyword))
     );
+
+    // Also check if user has provided booking-related information recently
+    const recentUserMessages = history
+      .filter(msg => msg.role === 'user')
+      .slice(-3)
+      .map(msg => msg.content.toLowerCase());
+
+    const userBookingIndicators = recentUserMessages.some(content => {
+      // Check if user provided email
+      const hasEmail = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/.test(content);
+      // Check if user mentioned booking
+      const hasBookingIntent = content.includes('book') || content.includes('appointment') || content.includes('schedule');
+      // Check if user provided name patterns
+      const hasNamePattern = /(?:my name is|i'm|i am|call me)\s+[a-zA-Z\s]+/i.test(content);
+      
+      return hasEmail || hasBookingIntent || hasNamePattern;
+    });
+
+    const isInFlow = hasBookingKeywords || userBookingIndicators;
+    
+    logger.info('Booking flow detection result:', { 
+      hasBookingKeywords, 
+      userBookingIndicators, 
+      isInFlow,
+      recentAssistantMessages: recentAssistantMessages.slice(0, 2),
+      recentUserMessages: recentUserMessages.slice(0, 2)
+    });
+
+    return isInFlow;
   }
 
   /**
    * Request missing information from customer
    */
-  private requestMissingInfo(missing: string[], _currentInfo: any): string {
+  private requestMissingInfo(missing: string[], currentInfo: any): string {
+    logger.info('Requesting missing info:', { missing, currentInfo });
+    
+    // If we have email but need name
+    if (missing.includes('name') && currentInfo.email) {
+      return "Great! I have your email. Now, what's your name?";
+    }
+    
+    // If we have name but need email  
+    if (missing.includes('email') && currentInfo.name) {
+      return `Nice to meet you, ${currentInfo.name}! What's your email address?`;
+    }
+    
+    // If we need both
+    if (missing.includes('name') && missing.includes('email')) {
+      return "To complete your booking, I need your name and email. Let's start with your name - what should I call you?";
+    }
+    
+    // Default fallback
     const missingList = missing.join(' and ');
     let response = `To complete your booking, I need your ${missingList}. `;
 
@@ -1657,12 +1892,21 @@ Keep responses concise but informative. Always prioritize customer satisfaction.
         date: startTime.toISOString().split('T')[0],
       });
 
-      // Check if any slot matches our requested time
-      return slots.some(
-        (slot) =>
-          slot.startTime.getTime() === startTime.getTime() &&
-          slot.endTime.getTime() === endTime.getTime()
-      );
+      // Check if any slot matches our requested time (with some tolerance for time differences)
+      return slots.some((slot) => {
+        const slotStart = slot.startTime.getTime();
+        const slotEnd = slot.endTime.getTime();
+        const requestedStart = startTime.getTime();
+        const requestedEnd = endTime.getTime();
+        
+        // Allow for small time differences (up to 1 minute = 60000ms)
+        const tolerance = 60000;
+        
+        return (
+          Math.abs(slotStart - requestedStart) <= tolerance &&
+          Math.abs(slotEnd - requestedEnd) <= tolerance
+        );
+      });
     } catch (error) {
       logger.error('Error checking slot availability:', error);
       return false;
